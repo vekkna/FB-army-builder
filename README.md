@@ -17,9 +17,11 @@ Then open <http://localhost:8000>. No install or build step is required.
 - 12 company profiles, 53 searchable traits, 14 relics, and 8 strategies from the workbook
 - Live stats, per-base cost, unit total, army total, base count, and break point
 - Trait incompatibility filtering and character-only relics
+- Level-budgeted spell selection for Mage-lords and Magic-users, including the Blink and Summon errata
 - Warlord/Mage-lord, Captain, Magic-user, and Rogue composition checks
 - Up to 25 unit entries and three strategies, matching the source sheet
 - Reordering, editing, duplicating, and removing units
+- Army-specific rules-reference PDFs containing the selected spells, traits, and strategies
 - One-click, print-ready unit-card PDFs (68 × 47.9 mm cards, four across on landscape A4)
 - A draggable 156 × 36 cm deployment planner with scale-correct bases and low-ink printing
 - Automatic local saving plus JSON save/load and a print layout

@@ -36,6 +36,11 @@ import {
   DEPLOYMENT_STORAGE_KEY,
   sanitiseDeploymentData,
 } from "./deployment.js";
+import {
+  buildArmyRules,
+  createRulesPdf,
+  rulesPdfFileName,
+} from "./rules-pdf.js";
 
 const STORAGE_KEY = "fantastic-battles-muster:v1";
 const $ = (selector) => document.querySelector(selector);
@@ -106,6 +111,7 @@ const elements = {
   toast: byId("toast"),
   importFile: byId("import-file"),
   unitCardsButton: byId("unit-cards-button"),
+  rulesButton: byId("rules-button"),
 };
 
 function makeId() {
@@ -488,8 +494,7 @@ function renderStrategies() {
   elements.strategyOptions.innerHTML = STRATEGIES.map((strategy) => {
     const selected = state.strategies.includes(strategy.name);
     const unavailable = !selected && state.strategies.length >= WORKBOOK_META.maxStrategies;
-    const actionHint = unavailable ? "Remove a selected strategy before adding another" : `${selected ? "Remove" : "Add"} ${strategy.name}`;
-    const title = `${strategy.description}\n\n${actionHint}`;
+    const title = strategy.description;
     return `<button class="strategy-option${selected ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}" type="button"
       data-strategy="${escapeHTML(strategy.name)}" aria-pressed="${selected}" ${unavailable ? 'disabled aria-disabled="true"' : ""} title="${escapeHTML(title)}">
       <strong>${escapeHTML(strategy.name)}</strong>
@@ -521,11 +526,13 @@ function upgradeChips(unit) {
 
 function renderRoster(army) {
   const count = state.units.length;
+  const rules = buildArmyRules(state);
+  const ruleCount = rules.sections.reduce((sum, section) => sum + section.entries.length, 0);
   elements.rosterList.classList.toggle("is-dense", count > 9);
   elements.unitCardsButton.disabled = count === 0;
-  elements.unitCardsButton.title = count
-    ? `Download ${plural(count, "unit card")} as a print-ready PDF`
-    : "Add a unit before creating cards";
+  elements.unitCardsButton.title = "Print and cut out unit cards for the battlefield.";
+  elements.rulesButton.disabled = ruleCount === 0;
+  elements.rulesButton.title = "Print the rules your army uses.";
   elements.emptyRoster.hidden = count > 0;
   elements.rosterFooter.hidden = count === 0;
   elements.unitCount.textContent = plural(count, "unit");
@@ -894,6 +901,29 @@ function downloadUnitCards() {
   }
 }
 
+function downloadRulesReference() {
+  try {
+    const rules = buildArmyRules(state);
+    const ruleCount = rules.sections.reduce((sum, section) => sum + section.entries.length, 0);
+    if (!ruleCount) {
+      showToast("Add a trait, spell, or strategy before creating a rules reference.");
+      return;
+    }
+    const pdf = createRulesPdf(rules);
+    const url = URL.createObjectURL(pdf);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = rulesPdfFileName(state.armyName);
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    showToast(`${plural(ruleCount, "rule")} reference PDF downloaded.`);
+  } catch {
+    showToast("The rules reference PDF could not be created.");
+  }
+}
+
 async function importArmy(file) {
   try {
     const parsed = JSON.parse(await file.text());
@@ -1060,6 +1090,7 @@ elements.importFile.addEventListener("change", () => {
 });
 byId("print-button").addEventListener("click", () => window.print());
 elements.unitCardsButton.addEventListener("click", downloadUnitCards);
+elements.rulesButton.addEventListener("click", downloadRulesReference);
 byId("new-button").addEventListener("click", () => {
   const hasWork = state.units.length
     || state.strategies.length
@@ -1085,4 +1116,6 @@ globalThis.__FB_MUSTER__ = Object.freeze({
   calculateArmy: () => calculateArmy(state),
   buildUnitCardData: () => buildUnitCardData(state.units),
   createUnitCardsPdf: () => createUnitCardsPdf(buildUnitCardData(state.units)),
+  buildArmyRules: () => buildArmyRules(state),
+  createRulesPdf: () => createRulesPdf(buildArmyRules(state)),
 });

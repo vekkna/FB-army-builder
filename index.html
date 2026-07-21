@@ -21,22 +21,25 @@
     </div>
 
     <div class="header-actions" aria-label="Army actions">
-      <button class="icon-button" id="export-button" type="button" title="Save army file">
+      <button class="icon-button" id="export-button" type="button" title="Download this army as a reusable JSON file">
         <span aria-hidden="true">↓</span><span class="button-label">Save</span>
       </button>
-      <button class="icon-button" id="import-button" type="button" title="Load army file">
+      <button class="icon-button" id="import-button" type="button" title="Load an army from a saved JSON file">
         <span aria-hidden="true">↑</span><span class="button-label">Load</span>
       </button>
-      <button class="icon-button" id="print-button" type="button" title="Print roster">
+      <button class="icon-button" id="print-button" type="button" title="Print the current army roster">
         <span aria-hidden="true">▣</span><span class="button-label">Print</span>
       </button>
-      <button class="icon-button" id="unit-cards-button" type="button" title="Download unit cards PDF" disabled>
+      <button class="icon-button" id="unit-cards-button" type="button" title="Print and cut out unit cards for the battlefield." disabled>
         <span aria-hidden="true">&#9636;</span><span class="button-label">Cards</span>
       </button>
-      <a class="icon-button" id="deployment-button" href="deployment.html" title="Plan this army's deployment">
+      <button class="icon-button" id="rules-button" type="button" title="Print the rules your army uses." disabled>
+        <span aria-hidden="true">&#167;</span><span class="button-label">Rules</span>
+      </button>
+      <a class="icon-button" id="deployment-button" href="deployment.html" title="Plan your army's deployment.">
         <span aria-hidden="true">&#9638;</span><span class="button-label">Deploy</span>
       </a>
-      <button class="icon-button danger-quiet" id="new-button" type="button" title="Start a new army">
+      <button class="icon-button danger-quiet" id="new-button" type="button" title="Clear the current army and start again">
         <span aria-hidden="true">＋</span><span class="button-label">New</span>
       </button>
       <input id="import-file" type="file" accept="application/json,.json" hidden>

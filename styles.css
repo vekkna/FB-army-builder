@@ -2003,6 +2003,15 @@ p {
 }
 
 @media (max-width: 400px) {
+  .site-header {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .brand-block > div:last-child {
+    display: none;
+  }
+
   #print-button {
     display: none;
   }

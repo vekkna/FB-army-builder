@@ -35,6 +35,7 @@ try {
     window.confirm = confirm;
   }
   const cardsDisabledWhenEmpty = document.querySelector('#unit-cards-button').disabled;
+  const rulesDisabledWhenEmpty = document.querySelector('#rules-button').disabled;
 
   click('[data-profile="Formed company"]');
   input('#unit-name', 'The Iron Guard', 'input');
@@ -80,11 +81,20 @@ try {
   const army = globalThis.__FB_MUSTER__.calculateArmy();
   const cardData = globalThis.__FB_MUSTER__.buildUnitCardData();
   const cardPdf = globalThis.__FB_MUSTER__.createUnitCardsPdf();
+  const rulesData = globalThis.__FB_MUSTER__.buildArmyRules();
+  const rulesPdf = globalThis.__FB_MUSTER__.createRulesPdf();
   let downloadedCardFile = '';
+  let downloadedRulesFile = '';
   const originalAnchorClick = HTMLAnchorElement.prototype.click;
   HTMLAnchorElement.prototype.click = function () { downloadedCardFile = this.download; };
   try {
     click('#unit-cards-button');
+  } finally {
+    HTMLAnchorElement.prototype.click = originalAnchorClick;
+  }
+  HTMLAnchorElement.prototype.click = function () { downloadedRulesFile = this.download; };
+  try {
+    click('#rules-button');
   } finally {
     HTMLAnchorElement.prototype.click = originalAnchorClick;
   }
@@ -99,11 +109,25 @@ try {
     emptyStateHidden: document.querySelector('#empty-roster').hidden && getComputedStyle(document.querySelector('#empty-roster')).display === 'none',
     hasPerBaseLabel: document.body.textContent.includes('/ base'),
     cardsDisabledWhenEmpty,
+    rulesDisabledWhenEmpty,
     cardsButtonEnabled: !document.querySelector('#unit-cards-button').disabled,
+    rulesButtonEnabled: !document.querySelector('#rules-button').disabled,
     cardCount: cardData.length,
     cardPdfType: cardPdf.type,
     cardPdfSize: cardPdf.size,
     downloadedCardFile,
+    rulesCount: rulesData.sections.reduce((sum, section) => sum + section.entries.length, 0),
+    rulesPdfType: rulesPdf.type,
+    rulesPdfSize: rulesPdf.size,
+    downloadedRulesFile,
+    strategyTooltip: document.querySelector('[data-strategy="Agent"]').title,
+    headerTooltipsPresent: Array.from(document.querySelectorAll('.header-actions [title]')).every((element) => element.title.trim()),
+    actionTooltips: {
+      cards: document.querySelector('#unit-cards-button').title,
+      rules: document.querySelector('#rules-button').title,
+      deploy: document.querySelector('#deployment-button').title,
+    },
+    rulesBetweenCardsAndDeploy: document.querySelector('#unit-cards-button').nextElementSibling?.id === 'rules-button' && document.querySelector('#rules-button').nextElementSibling?.id === 'deployment-button',
     spells: globalThis.__FB_MUSTER__.getState().units.flatMap((unit) => unit.spells || []),
     spellChips: Array.from(document.querySelectorAll('.upgrade-chip.is-spell')).map((chip) => chip.textContent.trim()),
     blinkTooltip: document.querySelector('[data-spell-name="Blink"]')?.title || '',
@@ -152,8 +176,14 @@ try {
   if (-not $result.emptyStateHidden) { throw "Expected the empty roster message to disappear after adding a unit." }
   if ($result.hasPerBaseLabel) { throw "Expected points labels to omit '/ base'." }
   if (-not $result.cardsDisabledWhenEmpty -or -not $result.cardsButtonEnabled) { throw "Expected Cards to be disabled for an empty roster and enabled after adding units." }
+  if (-not $result.rulesDisabledWhenEmpty -or -not $result.rulesButtonEnabled) { throw "Expected Rules to be disabled with no selected rules and enabled after building the army." }
   if ($result.cardCount -ne 2 -or $result.cardPdfType -ne "application/pdf" -or $result.cardPdfSize -lt 1000) { throw "Expected two generated cards in a non-empty PDF." }
   if ($result.downloadedCardFile -ne "fantastic-battles-army-unit-cards.pdf") { throw "Expected the Cards action to download the army-named PDF." }
+  if ($result.rulesCount -ne 5 -or $result.rulesPdfType -ne "application/pdf" -or $result.rulesPdfSize -lt 1000) { throw "Expected five unique selected rules in a non-empty PDF." }
+  if ($result.downloadedRulesFile -ne "fantastic-battles-army-rules-reference.pdf") { throw "Expected the Rules action to download the army-named PDF." }
+  if ($result.strategyTooltip -like "*Add Agent*" -or $result.strategyTooltip -notlike "*Sowing discord*") { throw "Expected strategy tooltips to contain descriptions without add prompts." }
+  if (-not $result.headerTooltipsPresent -or -not $result.rulesBetweenCardsAndDeploy) { throw "Expected descriptive header tooltips and Rules between Cards and Deploy." }
+  if ($result.actionTooltips.cards -ne "Print and cut out unit cards for the battlefield." -or $result.actionTooltips.rules -ne "Print the rules your army uses." -or $result.actionTooltips.deploy -ne "Plan your army's deployment.") { throw "Expected the requested Cards, Rules, and Deploy tooltips." }
   if ($result.spells.Count -ne 2 -or $result.spells[0].name -ne "Bless" -or $result.spells[0].level -ne 2 -or $result.spells[1].name -ne "Blink" -or $result.spells[1].level -ne 1) { throw "Expected a level-2 Bless and level-1 Blink on the Mage-lord." }
   if (-not ($result.spellChips | Where-Object { $_ -like "*Bless L2" }) -or -not ($result.spellChips | Where-Object { $_ -like "*Blink L1" })) { throw "Expected selected spells in the roster." }
   if ($result.blinkTooltip -notlike "*Roll needed: 5+ (errata)*") { throw "Expected the Blink errata in its tooltip." }
