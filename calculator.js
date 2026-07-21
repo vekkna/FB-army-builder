@@ -4,6 +4,7 @@ import {
   HERO_PROFILES,
   PROFILE_BY_NAME,
   RELIC_BY_NAME,
+  SPELL_BY_NAME,
   STAT_KEYS,
   STRATEGY_BY_NAME,
   TRAIT_BY_NAME,
@@ -26,6 +27,22 @@ export function hasCharacter(unit) {
 
 export function canTakeRelic(unit) {
   return Boolean(unit?.profile && hasCharacter(unit));
+}
+
+export function canChooseSpells(unit) {
+  if (!unit?.profile) return false;
+  if (["Mage-lord", "Magic-user"].includes(unit.profile)) return true;
+  return getTraitNames(unit).some((name) => ["Character (Mage-lord)", "Character (Magic-user)"].includes(name));
+}
+
+export function spellLevelAllowance(unit) {
+  if (!canChooseSpells(unit)) return 0;
+  return WORKBOOK_META.maxSpellLevels + (unit?.relic === "Mystical Tome of Revelation" ? 1 : 0);
+}
+
+export function selectedSpellLevels(unit) {
+  return (Array.isArray(unit?.spells) ? unit.spells : [])
+    .reduce((sum, spell) => sum + (Number.isInteger(Number(spell?.level)) ? Number(spell.level) : 0), 0);
 }
 
 export function traitsConflict(firstName, secondName) {
@@ -103,6 +120,25 @@ export function validateUnit(unit) {
   }
   if (unit?.relic && !RELIC_BY_NAME.has(unit.relic)) {
     issues.push({ code: "relic-unknown", message: `Unknown relic: ${unit.relic}` });
+  }
+  const spells = Array.isArray(unit?.spells) ? unit.spells : [];
+  for (const spell of spells) {
+    if (!SPELL_BY_NAME.has(spell?.name)) {
+      issues.push({ code: "spell-unknown", message: `Unknown spell: ${spell?.name || "unnamed"}` });
+    }
+    if (!Number.isInteger(Number(spell?.level)) || Number(spell.level) < 1 || Number(spell.level) > 3) {
+      issues.push({ code: "spell-level", message: `${spell?.name || "A spell"} must be level 1, 2, or 3.` });
+    }
+  }
+  const spellNames = spells.map(({ name }) => name);
+  if (new Set(spellNames).size !== spellNames.length) {
+    issues.push({ code: "spell-duplicate", message: "The same spell cannot be selected twice." });
+  }
+  if (spells.length && !canChooseSpells(unit)) {
+    issues.push({ code: "spell-character", message: "Only Mage-lords and Magic-users may choose spells." });
+  }
+  if (selectedSpellLevels(unit) > spellLevelAllowance(unit)) {
+    issues.push({ code: "spell-levels-max", message: `Choose no more than ${spellLevelAllowance(unit)} total spell levels.` });
   }
   if (traitNames.length > WORKBOOK_META.maxTraits || (unit?.traits?.length ?? 0) > WORKBOOK_META.maxAdditionalTraits) {
     issues.push({ code: "traits-max", message: "A unit can take one racial trait and up to three additional traits." });

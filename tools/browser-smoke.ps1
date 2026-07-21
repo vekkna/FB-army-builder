@@ -45,8 +45,13 @@ try {
   click('[data-trait-name="Shieldwall"]');
   click('#save-unit-button');
 
-  click('[data-profile="Warlord"]');
+  click('[data-profile="Mage-lord"]');
   input('#unit-name', 'Lady Rowan', 'input');
+  click('#add-spell-button');
+  click('[data-spell-name="Bless"]');
+  click('[data-spell-action="increase"][data-spell-index="0"]');
+  click('#add-spell-button');
+  click('[data-spell-name="Blink"]');
   input('#unit-relic', 'Blade of Unsurpassable Power', 'change');
   click('#save-unit-button');
 
@@ -99,6 +104,10 @@ try {
     cardPdfType: cardPdf.type,
     cardPdfSize: cardPdf.size,
     downloadedCardFile,
+    spells: globalThis.__FB_MUSTER__.getState().units.flatMap((unit) => unit.spells || []),
+    spellChips: Array.from(document.querySelectorAll('.upgrade-chip.is-spell')).map((chip) => chip.textContent.trim()),
+    blinkTooltip: document.querySelector('[data-spell-name="Blink"]')?.title || '',
+    cardSpellNames: cardData.flatMap((card) => card.abilities.filter((ability) => ability.kind === 'Spell').map((ability) => ability.name)),
     dragReordered: orderBeforeDrag[0] === orderAfterDrag[1] && orderBeforeDrag[1] === orderAfterDrag[0],
     dragHandles: document.querySelectorAll('[data-drag-handle]').length,
     directionButtons: document.querySelectorAll('[data-action="up"], [data-action="down"]').length,
@@ -137,7 +146,7 @@ try {
   $result = $message.result.result.value
 
   if ($result.units -ne 2 -or $result.cards -ne 2) { throw "Expected two roster units." }
-  if ($result.total -ne 243 -or $result.displayedTotal -ne "243") { throw "Expected a 243-point army." }
+  if ($result.total -ne 258 -or $result.displayedTotal -ne "258") { throw "Expected a 258-point army." }
   if ($result.breakPoint -ne 3) { throw "Expected break point 3." }
   if ($result.generals -ne 1 -or $result.issues -ne 0) { throw "Expected a legal army with one general." }
   if (-not $result.emptyStateHidden) { throw "Expected the empty roster message to disappear after adding a unit." }
@@ -145,6 +154,10 @@ try {
   if (-not $result.cardsDisabledWhenEmpty -or -not $result.cardsButtonEnabled) { throw "Expected Cards to be disabled for an empty roster and enabled after adding units." }
   if ($result.cardCount -ne 2 -or $result.cardPdfType -ne "application/pdf" -or $result.cardPdfSize -lt 1000) { throw "Expected two generated cards in a non-empty PDF." }
   if ($result.downloadedCardFile -ne "fantastic-battles-army-unit-cards.pdf") { throw "Expected the Cards action to download the army-named PDF." }
+  if ($result.spells.Count -ne 2 -or $result.spells[0].name -ne "Bless" -or $result.spells[0].level -ne 2 -or $result.spells[1].name -ne "Blink" -or $result.spells[1].level -ne 1) { throw "Expected a level-2 Bless and level-1 Blink on the Mage-lord." }
+  if (-not ($result.spellChips | Where-Object { $_ -like "*Bless L2" }) -or -not ($result.spellChips | Where-Object { $_ -like "*Blink L1" })) { throw "Expected selected spells in the roster." }
+  if ($result.blinkTooltip -notlike "*Roll needed: 5+ (errata)*") { throw "Expected the Blink errata in its tooltip." }
+  if ($result.cardSpellNames -notcontains "Bless L2" -or $result.cardSpellNames -notcontains "Blink L1") { throw "Expected spell names and levels in unit-card data." }
   if (-not $result.dragReordered -or $result.dragHandles -ne 2 -or $result.directionButtons -ne 0) { throw "Expected drag handles to reorder units without Up/Down buttons." }
 
   $result | ConvertTo-Json -Compress

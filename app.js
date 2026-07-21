@@ -3,6 +3,8 @@ import {
   PROFILE_BY_NAME,
   RELICS,
   RELIC_BY_NAME,
+  SPELLS,
+  SPELL_BY_NAME,
   STAT_KEYS,
   STRATEGIES,
   STRATEGY_BY_NAME,
@@ -13,12 +15,15 @@ import {
 import {
   calculateArmy,
   calculateUnit,
+  canChooseSpells,
   canTakeRelic,
   describeOption,
   formatSigned,
   getTraitAvailability,
   getTraitNames,
   isHeroProfile,
+  selectedSpellLevels,
+  spellLevelAllowance,
   traitsConflict,
   validateUnit,
 } from "./calculator.js";
@@ -62,6 +67,10 @@ const elements = {
   relicField: byId("relic-field"),
   relicHelp: byId("relic-help"),
   unitRelic: byId("unit-relic"),
+  spellControls: byId("spell-controls"),
+  spellCount: byId("spell-count"),
+  spellList: byId("spell-list"),
+  addSpellButton: byId("add-spell-button"),
   unitPreview: byId("unit-preview"),
   saveUnitButton: byId("save-unit-button"),
   saveUnitIcon: byId("save-unit-icon"),
@@ -91,6 +100,9 @@ const elements = {
   traitResults: byId("trait-results"),
   traitResultsCount: byId("trait-results-count"),
   clearTraitButton: byId("clear-trait-button"),
+  spellDialog: byId("spell-dialog"),
+  spellResults: byId("spell-results"),
+  spellResultsCount: byId("spell-results-count"),
   toast: byId("toast"),
   importFile: byId("import-file"),
   unitCardsButton: byId("unit-cards-button"),
@@ -109,6 +121,7 @@ function emptyDraft() {
     racialTrait: "",
     traits: [],
     relic: "",
+    spells: [],
   };
 }
 
@@ -134,6 +147,20 @@ function nonnegativeInteger(raw, fallback, maximum) {
   return Math.min(maximum, Math.max(0, Math.round(numeric)));
 }
 
+function normaliseSpells(rawSpells, allowance) {
+  const accepted = [];
+  let levelsUsed = 0;
+  for (const rawSpell of Array.isArray(rawSpells) ? rawSpells : []) {
+    if (!SPELL_BY_NAME.has(rawSpell?.name) || accepted.some(({ name }) => name === rawSpell.name)) continue;
+    const requestedLevel = Math.min(3, Math.max(1, Math.round(Number(rawSpell.level) || 1)));
+    const level = Math.min(requestedLevel, allowance - levelsUsed);
+    if (level < 1) break;
+    accepted.push({ name: rawSpell.name, level });
+    levelsUsed += level;
+  }
+  return accepted;
+}
+
 function sanitiseUnit(raw = {}) {
   const profile = PROFILE_BY_NAME.has(raw.profile) ? raw.profile : "";
   const rawRacialTrait = TRAIT_BY_NAME.has(raw.racialTrait) ? raw.racialTrait : "";
@@ -157,8 +184,10 @@ function sanitiseUnit(raw = {}) {
     racialTrait,
     traits: traits.slice(0, WORKBOOK_META.maxAdditionalTraits),
     relic: RELIC_BY_NAME.has(raw.relic) ? raw.relic : "",
+    spells: [],
   };
   if (!canTakeRelic(unit)) unit.relic = "";
+  unit.spells = canChooseSpells(unit) ? normaliseSpells(raw.spells, spellLevelAllowance(unit)) : [];
   return unit;
 }
 
@@ -321,7 +350,47 @@ function renderRelicOptions() {
   elements.unitRelic.title = selectedRelic?.description ?? "Choose a relic";
 }
 
+function spellTooltip(spell) {
+  if (!spell) return "";
+  return `Roll needed: ${spell.difficulty}${spell.errata ? " (errata)" : ""}\n\n${spell.description}`;
+}
+
+function normaliseDraftSpellSelection() {
+  draft.spells = canChooseSpells(draft)
+    ? normaliseSpells(draft.spells, spellLevelAllowance(draft))
+    : [];
+}
+
+function renderSpellControls() {
+  const eligible = canChooseSpells(draft);
+  const allowance = spellLevelAllowance(draft);
+  const levelsUsed = selectedSpellLevels(draft);
+  elements.spellControls.hidden = !eligible;
+  if (!eligible) return;
+
+  elements.spellCount.textContent = `${levelsUsed} / ${allowance} levels`;
+  elements.spellList.innerHTML = draft.spells.map((selection, index) => {
+    const spell = SPELL_BY_NAME.get(selection.name);
+    const tooltip = spellTooltip(spell);
+    return `<div class="spell-selection" title="${escapeHTML(tooltip)}">
+      <span class="spell-selection-copy">
+        <strong>${escapeHTML(selection.name)}</strong>
+        <small>Level ${selection.level} · roll ${escapeHTML(spell?.difficulty ?? "n/a")}</small>
+      </span>
+      <span class="spell-level-controls">
+        <button type="button" data-spell-action="decrease" data-spell-index="${index}" aria-label="Decrease ${escapeHTML(selection.name)} level" ${selection.level <= 1 ? "disabled" : ""}>−</button>
+        <button type="button" data-spell-action="increase" data-spell-index="${index}" aria-label="Increase ${escapeHTML(selection.name)} level" ${selection.level >= 3 || levelsUsed >= allowance ? "disabled" : ""}>+</button>
+      </span>
+      <button class="spell-remove-button" type="button" data-spell-action="remove" data-spell-index="${index}" aria-label="Remove ${escapeHTML(selection.name)}">×</button>
+    </div>`;
+  }).join("");
+  const full = levelsUsed >= allowance || draft.spells.length >= SPELLS.length;
+  elements.addSpellButton.disabled = full;
+  elements.addSpellButton.title = full ? "Reduce or remove a spell before choosing another" : "Choose another spell at level 1";
+}
+
 function renderDraft() {
+  normaliseDraftSpellSelection();
   const hasProfile = PROFILE_BY_NAME.has(draft.profile);
   const hero = isHeroProfile(draft.profile);
   const traitNames = getTraitNames(draft);
@@ -359,6 +428,7 @@ function renderDraft() {
   elements.relicField.classList.toggle("is-disabled", !relicAllowed);
   elements.relicHelp.textContent = relicAllowed ? "Optional" : "Requires a character";
   renderRelicOptions();
+  renderSpellControls();
 
   if (!hasProfile) {
     elements.unitPreview.innerHTML = `<div class="preview-placeholder"><span class="placeholder-crest" aria-hidden="true">◇</span><p>Choose a profile to see its final stats and cost.</p></div>`;
@@ -437,6 +507,10 @@ function upgradeChips(unit) {
   for (const trait of unit.traits ?? []) {
     const description = TRAIT_BY_NAME.get(trait)?.description ?? "";
     chips.push(`<span class="upgrade-chip" title="${escapeHTML(description)}">${escapeHTML(trait)}</span>`);
+  }
+  for (const selection of unit.spells ?? []) {
+    const spell = SPELL_BY_NAME.get(selection.name);
+    chips.push(`<span class="upgrade-chip is-spell" title="${escapeHTML(spellTooltip(spell))}"><span class="upgrade-kind">Spell · </span>${escapeHTML(selection.name)} L${selection.level}</span>`);
   }
   if (unit.relic) {
     const relic = RELIC_BY_NAME.get(unit.relic);
@@ -517,6 +591,7 @@ function resetDraft() {
 function selectProfile(profile) {
   if (!PROFILE_BY_NAME.has(profile)) return;
   const hadTraits = getTraitNames(draft).length > 0;
+  const hadSpells = draft.spells.length > 0;
   draft.profile = profile;
   if (isHeroProfile(profile)) {
     draft.racialTrait = "";
@@ -524,6 +599,7 @@ function selectProfile(profile) {
     if (hadTraits) showToast("Traits cleared: character profiles cannot take them.");
   }
   if (!canTakeRelic(draft)) draft.relic = "";
+  if (!canChooseSpells(draft) && hadSpells) showToast("Spells cleared: only Mage-lords and Magic-users may choose them.");
   renderDraft();
 }
 
@@ -723,6 +799,54 @@ function clearTrait() {
   renderDraft();
 }
 
+function renderSpellResults() {
+  const levelsUsed = selectedSpellLevels(draft);
+  const allowance = spellLevelAllowance(draft);
+  let availableCount = 0;
+  elements.spellResults.innerHTML = SPELLS.map((spell) => {
+    const selected = draft.spells.some(({ name }) => name === spell.name);
+    const available = !selected && levelsUsed < allowance;
+    if (available) availableCount += 1;
+    const reason = selected ? "Already selected" : "No spell levels remaining";
+    return `<button class="trait-result spell-result" type="button" data-spell-name="${escapeHTML(spell.name)}"
+      title="${escapeHTML(spellTooltip(spell))}" ${available ? "" : "disabled"}>
+      <span class="trait-result-name">${escapeHTML(spell.name)}</span>
+      <span class="trait-result-detail">Roll needed: ${escapeHTML(spell.difficulty)}${spell.errata ? " · errata" : ""}</span>
+      ${available
+        ? `<span class="trait-result-points">Add at level 1</span>`
+        : `<span class="trait-result-reason">${escapeHTML(reason)}</span>`}
+    </button>`;
+  }).join("");
+  elements.spellResultsCount.textContent = `${availableCount} available · ${levelsUsed} / ${allowance} levels used`;
+}
+
+function openSpellPicker() {
+  if (!canChooseSpells(draft) || selectedSpellLevels(draft) >= spellLevelAllowance(draft)) return;
+  renderSpellResults();
+  elements.spellDialog.showModal();
+}
+
+function addSpell(name) {
+  if (!SPELL_BY_NAME.has(name) || draft.spells.some((spell) => spell.name === name)) return;
+  if (selectedSpellLevels(draft) >= spellLevelAllowance(draft)) return;
+  draft.spells.push({ name, level: 1 });
+  elements.spellDialog.close();
+  renderDraft();
+}
+
+function changeSpell(index, action) {
+  const selection = draft.spells[index];
+  if (!selection) return;
+  if (action === "remove") {
+    draft.spells.splice(index, 1);
+  } else if (action === "decrease" && selection.level > 1) {
+    selection.level -= 1;
+  } else if (action === "increase" && selection.level < 3 && selectedSpellLevels(draft) < spellLevelAllowance(draft)) {
+    selection.level += 1;
+  }
+  renderDraft();
+}
+
 function downloadArmy() {
   const payload = {
     format: "fantastic-battles-muster",
@@ -823,6 +947,11 @@ elements.unitRelic.addEventListener("change", () => {
   draft.relic = elements.unitRelic.value;
   renderDraft();
 });
+elements.addSpellButton.addEventListener("click", openSpellPicker);
+elements.spellList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-spell-action]");
+  if (button) changeSpell(Number(button.dataset.spellIndex), button.dataset.spellAction);
+});
 
 elements.saveUnitButton.addEventListener("click", saveDraft);
 byId("reset-unit-button").addEventListener("click", resetDraft);
@@ -913,6 +1042,14 @@ elements.traitDialog.addEventListener("keydown", (event) => {
     event.preventDefault();
     elements.traitSearch.focus();
   }
+});
+elements.spellResults.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-spell-name]");
+  if (button) addSpell(button.dataset.spellName);
+});
+byId("spell-dialog-close").addEventListener("click", () => elements.spellDialog.close());
+elements.spellDialog.addEventListener("click", (event) => {
+  if (event.target === elements.spellDialog) elements.spellDialog.close();
 });
 
 byId("export-button").addEventListener("click", downloadArmy);

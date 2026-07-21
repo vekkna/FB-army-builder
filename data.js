@@ -4,6 +4,7 @@ export const WORKBOOK_META = Object.freeze({
   maxUnits: 25,
   maxTraits: 4,
   maxAdditionalTraits: 3,
+  maxSpellLevels: 3,
   maxStrategies: 3,
 });
 
@@ -222,6 +223,61 @@ export const RELICS = Object.freeze([
   },
 ]);
 
+export const SPELLS = Object.freeze([
+  {
+    name: "Bless",
+    difficulty: "3+",
+    description: "Successfully casting bless restores lost Resolve to a single unit within 5bw. At level 1 the Magic-user rolls 1d6, at level 2 the Magic-user rolls 2d6, and at level 3 the Magic-user rolls 3d6. For every roll of 3+, the chosen unit restores 1 Resolve. Bless may be used to restore lost Resolve to mindless units.",
+  },
+  {
+    name: "Blink",
+    difficulty: "5+",
+    description: "The blink spell can be used to teleport a single friendly or enemy unit. Indicate the direction of movement for a target unit within 5bw. If the spell is cast successfully the unit is teleported 1d3+1bw in the indicated direction, maintaining its current facing. If the new location places the blinked unit partially or fully off the table edge, in impassable terrain or on top of another unit, deploy it on the table as close to the location as possible. Units blinked into combat count as charging. At level 1 the Magic-user rolls 1d6, at level 2 the Magic-user rolls 2d6, and at level 3 the Magic-user rolls 3d6. Only a single roll of 5+ is required to successfully cast the spell.",
+    errata: true,
+  },
+  {
+    name: "Confusion",
+    difficulty: "3+",
+    description: "Successfully casting confusion on a target unit within 5bw forces it to roll for impetuous actions (with a -1 modifier) immediately – interrupting the turn if the caster is still able to give orders to one or more of their own units. A confused unit may not activate again in the same turn unless they are the target of a successful haste spell. At level 1 the Magic-user rolls 1d6, at level 2 the Magic-user rolls 2d6, and at level 3 the Magic-user rolls 3d6. Only a single roll of 3+ is required to successfully cast the spell.",
+  },
+  {
+    name: "Curse",
+    difficulty: "4+",
+    description: "Successfully casting curse reduces the fighting capacity of a single unit within 5bw. At level 1 the Magic-user rolls 1d6, at level 2 the Magic-user rolls 2d6, and at level 3 the Magic-user rolls 3d6. For every roll of 4+, each company in the target unit suffers a -1 Melee modifier this turn.",
+  },
+  {
+    name: "Empower",
+    difficulty: "3+",
+    description: "The empower spell is used to increase the fighting capacity of a chosen unit within 5bw. At level 1 the Magic-user rolls 1d6, at level 2 the Magic-user rolls 2d6, and at level 3 the Magic-user rolls 3d6. The chosen unit gains +1 Melee per company for the current turn for each roll of 3+.",
+  },
+  {
+    name: "Entangle",
+    difficulty: "4+",
+    description: "The entangle spell restrains one target unit within 5bw, ensuring that it cannot move in the current Action Phase. At level 1 the Magic-user rolls 1d6, at level 2 the Magic-user rolls 2d6, and at level 3 the Magic-user rolls 3d6. Only a single roll of 4+ is required to successfully cast the spell.",
+  },
+  {
+    name: "Haste",
+    difficulty: "4+",
+    description: "Successfully casting haste allows one unit within 5bw (even impetuous units) to conduct an additional optional action this turn. At level 1 the Magic-user rolls 1d6, at level 2 the Magic-user rolls 2d6, and at level 3 the Magic-user rolls 3d6. Only a single roll of 4+ is required to successfully cast the spell.",
+  },
+  {
+    name: "Magic missiles",
+    difficulty: "n/a",
+    description: "The magic missiles spell gives the Magic-user the capacity to shoot during the Shooting Phase. At level 1 the character gains a Shooting value of 1/1, at level 2 the Shooting value becomes 2/2, and at level 3 the Shooting value becomes 3/3. Magic missiles always treat their target's Defence as 4+, ignoring the Defence modifier of targets with the ephemeral or shieldwall traits. Mundane targets have a Defence of 5+ against magic-missiles. Magic-users who use magic missiles in the Shooting Phase may not cast a different spell in the Action Phase of the same turn.",
+  },
+  {
+    name: "Prophesy",
+    difficulty: "n/a",
+    description: "Magic-users with the prophesy spell roll a number of d6 prophecy dice after rolling for Mishaps at the beginning of the game. The prophecy dice should be kept to one side. At any point later in the game the player may replace any die roll (by either player) with one of their prophecy dice. Each prophecy die may only be used once and may not be further altered. At level 1 the Magic-user rolls 1 prophecy die, at level 2 the Magic-user rolls 2 prophecy dice, and at level 3 the Magic-user rolls 3 prophecy dice. Prophecy dice may not be used if the Magic-user responsible is on a flank march, has fled the table, or has been killed.",
+  },
+  {
+    name: "Summon",
+    difficulty: "4+",
+    description: "Successfully casting the summon spell adds 1 summoning point to the Magic-user's personal summoning pool. The summoning pool may accrue over multiple turns. Once enough summoning points have been generated to pay the cost of an entire unit (1-4 companies), the unit is immediately placed on the table within 2bw of the Magic-user – any unspent summoning points are lost. A summoned unit may not conduct an action in the same turn it is summoned. However, if the freshly summoned unit is placed with its front base edge in contact with an enemy, the summoned unit counts as charging. At level 1, each point in the summoning pool is worth 10 points towards the cost of the summoned unit; at level 2, each summoning point is worth 20 points; and at level 3, each summoning point is worth 30 points.",
+    errata: true,
+  },
+]);
+
 export const STRATEGIES = Object.freeze([
   {
     name: "Agent",
@@ -273,4 +329,5 @@ export const CHARACTER_TRAITS = Object.freeze(new Set(TRAITS.filter(({ name }) =
 export const PROFILE_BY_NAME = new Map(PROFILES.map((item) => [item.name, item]));
 export const TRAIT_BY_NAME = new Map(TRAITS.map((item) => [item.name, item]));
 export const RELIC_BY_NAME = new Map(RELICS.map((item) => [item.name, item]));
+export const SPELL_BY_NAME = new Map(SPELLS.map((item) => [item.name, item]));
 export const STRATEGY_BY_NAME = new Map(STRATEGIES.map((item) => [item.name, item]));

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { RELICS, STRATEGIES, TRAITS } from "./data.js";
+import { RELICS, SPELLS, STRATEGIES, TRAITS } from "./data.js";
 
 test("every relic includes tooltip rules text", () => {
   assert.equal(RELICS.length, 14);
@@ -28,4 +28,14 @@ test("every trait includes tooltip rules text", () => {
     TRAITS.find(({ name }) => name === "Terrifying").description,
     /Incompatible traits: militia, mundane, rabble$/,
   );
+});
+
+test("spells include effects, difficulties, and casting errata", () => {
+  assert.equal(SPELLS.length, 10);
+  assert.ok(SPELLS.every(({ description, difficulty }) => description.length > 0 && difficulty.length > 0));
+  assert.deepEqual(
+    SPELLS.filter(({ errata }) => errata).map(({ name, difficulty }) => [name, difficulty]),
+    [["Blink", "5+"], ["Summon", "4+"]],
+  );
+  assert.match(SPELLS.find(({ name }) => name === "Blink").description, /single roll of 5\+/);
 });

@@ -796,6 +796,92 @@ p {
   opacity: .58;
 }
 
+.spell-control {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.spell-list {
+  display: grid;
+  gap: 6px;
+}
+
+.spell-selection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 43px;
+  padding: 6px 7px 6px 10px;
+  background: #f8f3e8;
+  border: 1px solid #d6c59f;
+  border-radius: 9px;
+}
+
+.spell-selection-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.spell-selection-copy strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spell-selection-copy small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.spell-level-controls {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid #c9b78f;
+  border-radius: 7px;
+}
+
+.spell-level-controls button {
+  min-width: 28px;
+  min-height: 29px;
+  padding: 3px 6px;
+  color: var(--ink);
+  background: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.spell-level-controls button + button {
+  border-left: 1px solid #d8ccb1;
+}
+
+.spell-level-controls button:disabled {
+  color: #aaa39a;
+  background: #f1eee7;
+}
+
+.spell-remove-button {
+  width: 29px;
+  min-height: 29px;
+  color: var(--muted);
+  border-radius: 7px;
+  font-size: 18px;
+}
+
+.spell-remove-button:hover {
+  color: var(--red);
+  background: #f8e9e6;
+}
+
+.add-spell-button {
+  min-height: 39px;
+}
+
 .unit-preview {
   margin: 0 18px 11px;
   overflow: hidden;
@@ -1502,6 +1588,24 @@ p {
   grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
+.spell-dialog-shell {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.spell-result {
+  grid-template-columns: minmax(150px, .8fr) minmax(100px, 1.2fr) auto;
+}
+
+.spell-result .trait-result-detail {
+  font-weight: 700;
+}
+
+.upgrade-chip.is-spell {
+  color: #44536f;
+  background: #f2f5fb;
+  border-color: #bdc8dc;
+}
+
 .dialog-header {
   justify-content: space-between;
   gap: 16px;
@@ -2135,7 +2239,8 @@ p {
 
   .upgrade-chip,
   .upgrade-chip.is-racial,
-  .upgrade-chip.is-relic {
+  .upgrade-chip.is-relic,
+  .upgrade-chip.is-spell {
     padding: 0;
     color: #333;
     background: transparent;

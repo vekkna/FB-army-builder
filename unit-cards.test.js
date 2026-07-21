@@ -61,6 +61,24 @@ test("card ability selection preserves the legacy relic-first layout", () => {
   assert.deepEqual(displayedCardAbilities({ abilities: abilities.slice(0, 2) }), abilities.slice(0, 2));
 });
 
+test("spellcasters show spell names and levels on unit cards", async () => {
+  const [card] = buildUnitCardData([company({
+    profile: "Magic-user",
+    spells: [{ name: "Blink", level: 2 }, { name: "Summon", level: 1 }],
+    relic: "Mystical Tome of Revelation",
+  })]);
+  assert.deepEqual(displayedCardAbilities(card), [
+    { kind: "Relic", name: "Mystical Tome of Revelation" },
+    { kind: "Spell", name: "Blink L2" },
+    { kind: "Spell", name: "Summon L1" },
+  ]);
+  assert.ok(displayedCardAbilities(card).every(({ name }) => !name.includes("Successfully")));
+  const pdf = createUnitCardsPdf([card]);
+  const pdfText = new TextDecoder("windows-1252").decode(await pdf.arrayBuffer());
+  assert.ok(pdfText.includes("(Blink L2)"));
+  assert.ok(pdfText.includes("(Summon L1)"));
+});
+
 test("unit-card PDF is valid, paginated, and contains roster text", async () => {
   const cards = buildUnitCardData([company({ name: "Guard (North)" })]);
   const pdf = createUnitCardsPdf(cards);

@@ -4,10 +4,12 @@ import assert from "node:assert/strict";
 import {
   calculateArmy,
   calculateUnit,
+  canChooseSpells,
   canTakeRelic,
   getTraitAvailability,
   traitsConflict,
   validateUnit,
+  spellLevelAllowance,
 } from "./calculator.js";
 
 const unit = (overrides = {}) => ({
@@ -142,5 +144,27 @@ test("zero-base summoned units retain their stats and cost no points", () => {
   const army = calculateArmy({ pointsLimit: 500, strategies: [], units: [summoned] });
   assert.equal(army.unitPoints, 0);
   assert.equal(army.total, 0);
+});
+
+test("Mage-lords and Magic-users receive three spell levels", () => {
+  const mage = unit({
+    profile: "Mage-lord",
+    spells: [{ name: "Bless", level: 2 }, { name: "Blink", level: 1 }],
+  });
+  assert.equal(canChooseSpells(mage), true);
+  assert.equal(spellLevelAllowance(mage), 3);
+  assert.equal(validateUnit(mage).some(({ code }) => code.startsWith("spell-")), false);
+
+  mage.spells.push({ name: "Summon", level: 1 });
+  assert.equal(validateUnit(mage).some(({ code }) => code === "spell-levels-max"), true);
+  mage.relic = "Mystical Tome of Revelation";
+  assert.equal(spellLevelAllowance(mage), 4);
+  assert.equal(validateUnit(mage).some(({ code }) => code === "spell-levels-max"), false);
+});
+
+test("non-spellcasters cannot retain spell selections", () => {
+  const captain = unit({ profile: "Captain", spells: [{ name: "Bless", level: 1 }] });
+  assert.equal(canChooseSpells(captain), false);
+  assert.equal(validateUnit(captain).some(({ code }) => code === "spell-character"), true);
 });
 

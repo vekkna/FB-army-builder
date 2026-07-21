@@ -159,6 +159,18 @@
             <option value="">No relic</option>
           </select>
         </label>
+
+        <div class="spell-control" id="spell-controls" hidden>
+          <div class="control-label-row">
+            <span>Spells</span>
+            <small id="spell-count">0 / 3 levels</small>
+          </div>
+          <div class="spell-list" id="spell-list"></div>
+          <button class="picker-button add-spell-button" id="add-spell-button" type="button">
+            <span class="picker-copy"><small>Spellbook</small><strong>Choose a spell</strong></span>
+            <span aria-hidden="true">›</span>
+          </button>
+        </div>
       </div>
 
       <section class="unit-preview" id="unit-preview" aria-label="Unit preview" aria-live="polite">
@@ -270,6 +282,23 @@
         <button class="text-button" id="clear-trait-button" type="button">Clear this slot</button>
       </div>
       <div class="trait-results" id="trait-results"></div>
+    </div>
+  </dialog>
+
+  <dialog class="trait-dialog spell-dialog" id="spell-dialog" aria-labelledby="spell-dialog-title">
+    <div class="dialog-shell spell-dialog-shell">
+      <header class="dialog-header">
+        <div>
+          <p class="step-label">Spellbook</p>
+          <h2 id="spell-dialog-title">Choose a spell</h2>
+        </div>
+        <button class="dialog-close" id="spell-dialog-close" type="button" aria-label="Close spell picker">×</button>
+      </header>
+      <div class="dialog-toolbar">
+        <span id="spell-results-count">10 spells</span>
+        <span>Added at level 1</span>
+      </div>
+      <div class="trait-results spell-results" id="spell-results"></div>
     </div>
   </dialog>
 

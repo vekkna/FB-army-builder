@@ -30,6 +30,9 @@ export function buildUnitCardData(units = []) {
     for (const trait of Array.isArray(unit?.traits) ? unit.traits : []) {
       if (trait) abilities.push({ kind: "Trait", name: trait });
     }
+    for (const spell of Array.isArray(unit?.spells) ? unit.spells : []) {
+      if (spell?.name) abilities.push({ kind: "Spell", name: `${spell.name} L${spell.level}` });
+    }
     if (unit?.relic) abilities.push({ kind: "Relic", name: unit.relic });
     return {
       name: clean(unit?.name) || clean(unit?.profile) || "Unnamed unit",
@@ -51,6 +54,8 @@ export function buildUnitCardData(units = []) {
 export function displayedCardAbilities(unit) {
   const abilities = Array.isArray(unit?.abilities) ? unit.abilities : [];
   const relics = abilities.filter((ability) => ability.kind === "Relic");
+  const spells = abilities.filter((ability) => ability.kind === "Spell");
+  if (spells.length) return [...relics.slice(0, 1), ...spells];
   return relics.length ? relics.slice(0, 1) : abilities.slice(0, 4);
 }
 
@@ -284,9 +289,9 @@ function drawCardContent(canvas, unit, x, y) {
   }
 
   const gap = 2;
-  const columns = abilities.length === 4 ? 2 : 1;
-  const rows = abilities.length === 4 ? 2 : abilities.length;
-  const preferredSize = abilities.length === 4 ? 5.8 : abilities.length <= 2 ? 6.8 : 5.8;
+  const columns = abilities.length >= 4 ? 2 : 1;
+  const rows = Math.ceil(abilities.length / columns);
+  const preferredSize = abilities.length >= 4 ? 5.4 : abilities.length <= 2 ? 6.8 : 5.8;
   const cellWidth = (areaWidth - gap * (columns - 1)) / columns;
   const cellHeight = (areaHeight - gap * (rows - 1)) / rows;
   abilities.forEach((ability, index) => {
