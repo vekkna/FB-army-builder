@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#18231f">
+  <meta name="description" content="A fast, local-first army builder for Fantastic Battles, based on the supplied spreadsheet.">
+  <title>Fantastic Battles Muster</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to army builder</a>
+
+  <header class="site-header">
+    <div class="brand-block">
+      <div class="brand-mark" aria-hidden="true"><span>FB</span></div>
+      <div>
+        <p class="eyebrow">Fantastic Battles</p>
+        <h1>Muster</h1>
+      </div>
+    </div>
+
+    <div class="header-actions" aria-label="Army actions">
+      <button class="icon-button" id="copy-button" type="button" title="Copy roster as text">
+        <span aria-hidden="true">⧉</span><span class="button-label">Copy</span>
+      </button>
+      <button class="icon-button" id="export-button" type="button" title="Download army file">
+        <span aria-hidden="true">↓</span><span class="button-label">Export</span>
+      </button>
+      <button class="icon-button" id="import-button" type="button" title="Import army file">
+        <span aria-hidden="true">↑</span><span class="button-label">Import</span>
+      </button>
+      <button class="icon-button" id="print-button" type="button" title="Print roster">
+        <span aria-hidden="true">▣</span><span class="button-label">Print</span>
+      </button>
+      <button class="icon-button danger-quiet" id="new-button" type="button" title="Start a new army">
+        <span aria-hidden="true">＋</span><span class="button-label">New</span>
+      </button>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <section class="army-bar" aria-label="Army overview">
+    <label class="army-name-field">
+      <span>Army name</span>
+      <input id="army-name" type="text" maxlength="80" autocomplete="off" placeholder="Name your host">
+    </label>
+
+    <label class="points-limit-field">
+      <span>Game size</span>
+      <span class="number-shell">
+        <input id="points-limit" type="number" min="1" max="1000000" step="50" inputmode="numeric" aria-label="Points limit">
+        <small>pts</small>
+      </span>
+    </label>
+
+    <div class="points-meter" id="points-meter" aria-live="polite">
+      <div class="meter-copy">
+        <span id="points-caption">Army total</span>
+        <strong><span id="points-total">0</span><small> / <span id="points-target">1,000</span> pts</small></strong>
+      </div>
+      <div class="meter-track" aria-hidden="true"><span id="meter-fill"></span></div>
+    </div>
+
+    <div class="overview-stat">
+      <span>Bases</span>
+      <strong id="bases-total">0</strong>
+    </div>
+    <div class="overview-stat">
+      <span>Break point</span>
+      <strong id="break-point">—</strong>
+    </div>
+    <div class="status-pill is-empty" id="army-status">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="status-label">Ready to muster</span>
+    </div>
+  </section>
+
+  <main class="workspace" id="main-content">
+    <aside class="forge-panel panel" aria-labelledby="forge-title">
+      <div class="panel-heading">
+        <div>
+          <p class="step-label" id="editor-mode">New unit</p>
+          <h2 id="forge-title">Build a company</h2>
+        </div>
+        <button class="text-button" id="cancel-edit-button" type="button" hidden>Cancel edit</button>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title-row">
+          <div>
+            <span class="section-number">1</span>
+            <h3>Choose a profile</h3>
+          </div>
+          <span class="selection-note" id="profile-selection-note">Required</span>
+        </div>
+        <div class="profile-groups" id="profile-options"></div>
+      </div>
+
+      <div class="form-section is-muted-until-profile" id="identity-section">
+        <div class="section-title-row">
+          <div>
+            <span class="section-number">2</span>
+            <h3>Name &amp; size</h3>
+          </div>
+        </div>
+        <div class="identity-grid">
+          <label class="field">
+            <span>Unit name <small>optional</small></span>
+            <input id="unit-name" type="text" maxlength="60" autocomplete="off" placeholder="e.g. The Iron Guard">
+          </label>
+          <label class="field bases-field">
+            <span>Bases</span>
+            <span class="stepper">
+              <button id="bases-minus" type="button" aria-label="Remove one base">−</button>
+              <input id="unit-bases" type="number" min="1" max="999" step="1" inputmode="numeric" value="1">
+              <button id="bases-plus" type="button" aria-label="Add one base">＋</button>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section is-muted-until-profile" id="traits-section">
+        <div class="section-title-row">
+          <div>
+            <span class="section-number">3</span>
+            <h3>Traits &amp; relic</h3>
+          </div>
+          <span class="selection-note" id="trait-count">0 / 4 traits</span>
+        </div>
+
+        <div id="hero-trait-note" class="inline-note" hidden>
+          Character profiles cannot take traits, but may carry one relic.
+        </div>
+
+        <div class="trait-control" id="trait-controls">
+          <div class="control-label-row">
+            <span>Racial trait</span>
+            <small>One slot</small>
+          </div>
+          <button class="picker-button" id="racial-trait-button" type="button">
+            <span class="picker-copy"><small>Racial</small><strong>Choose a trait</strong></span>
+            <span aria-hidden="true">›</span>
+          </button>
+
+          <div class="control-label-row additional-label">
+            <span>Additional traits</span>
+            <small>Up to three</small>
+          </div>
+          <div class="trait-slots" id="additional-traits"></div>
+        </div>
+
+        <label class="field relic-field" id="relic-field">
+          <span>Relic <small id="relic-help">Requires a character</small></span>
+          <select id="unit-relic" disabled>
+            <option value="">No relic</option>
+          </select>
+        </label>
+      </div>
+
+      <section class="unit-preview" id="unit-preview" aria-label="Unit preview" aria-live="polite">
+        <div class="preview-placeholder">
+          <span class="placeholder-crest" aria-hidden="true">◇</span>
+          <p>Choose a profile to see its final stats and cost.</p>
+        </div>
+      </section>
+
+      <div class="editor-actions">
+        <button class="primary-button" id="save-unit-button" type="button" disabled>
+          <span id="save-unit-label">Add to army</span>
+          <strong id="save-unit-cost">—</strong>
+        </button>
+        <button class="secondary-button" id="reset-unit-button" type="button">Clear</button>
+      </div>
+    </aside>
+
+    <section class="roster-column" aria-labelledby="roster-title">
+      <section class="strategies-panel panel" aria-labelledby="strategies-title">
+        <div class="panel-heading compact">
+          <div>
+            <p class="step-label">Army-wide</p>
+            <h2 id="strategies-title">Strategies</h2>
+          </div>
+          <span class="capacity-badge" id="strategy-count">0 / 3</span>
+        </div>
+        <p class="panel-intro">Choose up to three. Strategy costs are added once to the army total.</p>
+        <div class="strategy-grid" id="strategy-options"></div>
+      </section>
+
+      <section class="checks-panel panel" id="checks-panel" aria-labelledby="checks-title" hidden>
+        <button class="checks-heading" id="checks-toggle" type="button" aria-expanded="true" aria-controls="checks-list">
+          <span>
+            <span class="check-icon" aria-hidden="true">!</span>
+            <strong id="checks-title">Army checks</strong>
+            <small id="checks-summary"></small>
+          </span>
+          <span class="chevron" aria-hidden="true">⌃</span>
+        </button>
+        <ul id="checks-list"></ul>
+      </section>
+
+      <section class="roster-panel panel">
+        <div class="panel-heading roster-heading">
+          <div>
+            <p class="step-label">Your force</p>
+            <h2 id="roster-title">Army roster</h2>
+          </div>
+          <div class="roster-heading-meta">
+            <span id="unit-count">0 units</span>
+            <strong id="roster-points">0 pts</strong>
+          </div>
+        </div>
+
+        <div class="empty-roster" id="empty-roster">
+          <div class="empty-illustration" aria-hidden="true">
+            <span>✦</span><span>♜</span><span>✦</span>
+          </div>
+          <h3>Your muster is empty</h3>
+          <p>Choose a profile on the left, customise it, then add it to your army.</p>
+          <button class="secondary-button mobile-start-button" id="mobile-start-button" type="button">Build your first unit</button>
+        </div>
+
+        <div class="roster-list" id="roster-list"></div>
+
+        <div class="roster-footer" id="roster-footer" hidden>
+          <div>
+            <span>Units</span><strong id="footer-units">0</strong>
+          </div>
+          <div>
+            <span>Unit cost</span><strong id="footer-unit-points">0 pts</strong>
+          </div>
+          <div>
+            <span>Strategies</span><strong id="footer-strategy-points">0 pts</strong>
+          </div>
+          <div class="grand-total">
+            <span>Total</span><strong id="footer-total">0 pts</strong>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Built from the supplied workbook. <span>Army builder spreadsheet designed by Mike Wilson (2020).</span></p>
+    <p>Runs entirely in your browser; armies are saved on this device.</p>
+  </footer>
+
+  <dialog class="trait-dialog" id="trait-dialog" aria-labelledby="trait-dialog-title">
+    <div class="dialog-shell">
+      <header class="dialog-header">
+        <div>
+          <p class="step-label" id="trait-dialog-kicker">Trait slot</p>
+          <h2 id="trait-dialog-title">Choose a trait</h2>
+        </div>
+        <button class="dialog-close" id="trait-dialog-close" type="button" aria-label="Close trait picker">×</button>
+      </header>
+      <div class="trait-search-wrap">
+        <span aria-hidden="true">⌕</span>
+        <input id="trait-search" type="search" autocomplete="off" placeholder="Search 53 traits…" aria-label="Search traits">
+        <kbd>/</kbd>
+      </div>
+      <div class="dialog-toolbar">
+        <span id="trait-results-count">53 available</span>
+        <button class="text-button" id="clear-trait-button" type="button">Clear this slot</button>
+      </div>
+      <div class="trait-results" id="trait-results"></div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

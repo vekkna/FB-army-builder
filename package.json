@@ -1,0 +1,11 @@
+{
+  "name": "fantastic-battles-muster",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check data.js && node --check calculator.js && node --check app.js"
+  }
+}
+
