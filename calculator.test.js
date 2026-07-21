@@ -128,3 +128,19 @@ test("Cloaks and Daggers raises the Rogue allowance", () => {
   assert.equal(army.errors.some(({ code }) => code === "limit-rogues"), false);
 });
 
+test("zero-base summoned units retain their stats and cost no points", () => {
+  const summoned = unit({ bases: 0, racialTrait: "Doughty" });
+  const result = calculateUnit(summoned);
+
+  assert.equal(result.resolve, 5);
+  assert.equal(result.defence, 5);
+  assert.equal(result.pointsPerBase, 34);
+  assert.equal(result.bases, 0);
+  assert.equal(result.total, 0);
+  assert.deepEqual(validateUnit(summoned), []);
+
+  const army = calculateArmy({ pointsLimit: 500, strategies: [], units: [summoned] });
+  assert.equal(army.unitPoints, 0);
+  assert.equal(army.total, 0);
+});
+

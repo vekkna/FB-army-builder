@@ -21,17 +21,17 @@
     </div>
 
     <div class="header-actions" aria-label="Army actions">
-      <button class="icon-button" id="copy-button" type="button" title="Copy roster as text">
-        <span aria-hidden="true">⧉</span><span class="button-label">Copy</span>
+      <button class="icon-button" id="export-button" type="button" title="Save army file">
+        <span aria-hidden="true">↓</span><span class="button-label">Save</span>
       </button>
-      <button class="icon-button" id="export-button" type="button" title="Download army file">
-        <span aria-hidden="true">↓</span><span class="button-label">Export</span>
-      </button>
-      <button class="icon-button" id="import-button" type="button" title="Import army file">
-        <span aria-hidden="true">↑</span><span class="button-label">Import</span>
+      <button class="icon-button" id="import-button" type="button" title="Load army file">
+        <span aria-hidden="true">↑</span><span class="button-label">Load</span>
       </button>
       <button class="icon-button" id="print-button" type="button" title="Print roster">
         <span aria-hidden="true">▣</span><span class="button-label">Print</span>
+      </button>
+      <button class="icon-button" id="unit-cards-button" type="button" title="Download unit cards PDF" disabled>
+        <span aria-hidden="true">&#9636;</span><span class="button-label">Cards</span>
       </button>
       <button class="icon-button danger-quiet" id="new-button" type="button" title="Start a new army">
         <span aria-hidden="true">＋</span><span class="button-label">New</span>
@@ -113,7 +113,7 @@
             <span>Bases</span>
             <span class="stepper">
               <button id="bases-minus" type="button" aria-label="Remove one base">−</button>
-              <input id="unit-bases" type="number" min="1" max="999" step="1" inputmode="numeric" value="1">
+              <input id="unit-bases" type="number" min="0" max="999" step="1" inputmode="numeric" value="1">
               <button id="bases-plus" type="button" aria-label="Add one base">＋</button>
             </span>
           </label>
@@ -167,8 +167,11 @@
 
       <div class="editor-actions">
         <button class="primary-button" id="save-unit-button" type="button" disabled>
-          <span id="save-unit-label">Add to army</span>
-          <strong id="save-unit-cost">—</strong>
+          <span class="primary-button-main">
+            <span class="primary-button-icon" id="save-unit-icon" aria-hidden="true">+</span>
+            <span id="save-unit-label">Add unit to army</span>
+          </span>
+          <strong id="save-unit-cost" hidden>—</strong>
         </button>
         <button class="secondary-button" id="reset-unit-button" type="button">Clear</button>
       </div>

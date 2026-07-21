@@ -92,8 +92,8 @@ export function validateUnit(unit) {
   if (!PROFILE_BY_NAME.has(unit?.profile)) {
     issues.push({ code: "profile", message: "Choose a company profile." });
   }
-  if (!Number.isInteger(bases) || bases < 1) {
-    issues.push({ code: "bases", message: "Bases must be a whole number of at least 1." });
+  if (!Number.isInteger(bases) || bases < 0) {
+    issues.push({ code: "bases", message: "Bases must be a whole number of at least 0." });
   }
   if (unit?.racialTrait && !TRAIT_BY_NAME.has(unit.racialTrait)) {
     issues.push({ code: "racial-unknown", message: `Unknown trait: ${unit.racialTrait}` });
@@ -255,23 +255,3 @@ export function describeOption(item, { includePoints = true } = {}) {
   return parts.join(" · ");
 }
 
-export function rosterText(state) {
-  const army = calculateArmy(state);
-  const lines = [
-    state?.armyName?.trim() || "Untitled Army",
-    `${army.total} / ${Number(state?.pointsLimit) || 0} points`,
-  ];
-  if (state?.strategies?.length) lines.push(`Strategies: ${state.strategies.join(", ")} (${army.strategyPoints} pts)`);
-  lines.push("");
-  for (const { unit, stats } of army.units) {
-    const title = unit.name?.trim() || unit.profile;
-    lines.push(`${title} — ${unit.profile} — ${stats.bases} base${stats.bases === 1 ? "" : "s"} — ${stats.total} pts`);
-    lines.push(`  RES ${stats.resolve} · MOV ${stats.move} · MEL ${stats.melee} · SHT ${stats.shootShort}/${stats.shootLong} · DEF ${stats.defence} · COM ${stats.command}`);
-    const traits = getTraitNames(unit);
-    if (traits.length) lines.push(`  Traits: ${traits.join(", ")}`);
-    if (unit.relic) lines.push(`  Relic: ${unit.relic}`);
-  }
-  if (army.breakPoint) lines.push("", `Break point: ${army.breakPoint} (${army.eligibleBreakBases} eligible bases)`);
-  if (army.issues.length) lines.push("", "Checks:", ...army.issues.map((issue) => `- ${issue.message}`));
-  return lines.join("\n");
-}

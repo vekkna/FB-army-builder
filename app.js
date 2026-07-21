@@ -19,10 +19,14 @@ import {
   getTraitAvailability,
   getTraitNames,
   isHeroProfile,
-  rosterText,
   traitsConflict,
   validateUnit,
 } from "./calculator.js";
+import {
+  buildUnitCardData,
+  createUnitCardsPdf,
+  unitCardsFileName,
+} from "./unit-cards.js";
 
 const STORAGE_KEY = "fantastic-battles-muster:v1";
 const $ = (selector) => document.querySelector(selector);
@@ -56,6 +60,7 @@ const elements = {
   unitRelic: byId("unit-relic"),
   unitPreview: byId("unit-preview"),
   saveUnitButton: byId("save-unit-button"),
+  saveUnitIcon: byId("save-unit-icon"),
   saveUnitLabel: byId("save-unit-label"),
   saveUnitCost: byId("save-unit-cost"),
   editorMode: byId("editor-mode"),
@@ -84,6 +89,7 @@ const elements = {
   clearTraitButton: byId("clear-trait-button"),
   toast: byId("toast"),
   importFile: byId("import-file"),
+  unitCardsButton: byId("unit-cards-button"),
 };
 
 function makeId() {
@@ -118,6 +124,12 @@ function positiveInteger(raw, fallback, maximum) {
   return Math.min(maximum, Math.max(1, Math.round(numeric)));
 }
 
+function nonnegativeInteger(raw, fallback, maximum) {
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(maximum, Math.max(0, Math.round(numeric)));
+}
+
 function sanitiseUnit(raw = {}) {
   const profile = PROFILE_BY_NAME.has(raw.profile) ? raw.profile : "";
   const rawRacialTrait = TRAIT_BY_NAME.has(raw.racialTrait) ? raw.racialTrait : "";
@@ -137,7 +149,7 @@ function sanitiseUnit(raw = {}) {
     id: typeof raw.id === "string" && raw.id ? raw.id : makeId(),
     name: typeof raw.name === "string" ? raw.name.slice(0, 60) : "",
     profile,
-    bases: positiveInteger(raw.bases, 1, 999),
+    bases: nonnegativeInteger(raw.bases, 1, 999),
     racialTrait,
     traits: traits.slice(0, WORKBOOK_META.maxAdditionalTraits),
     relic: RELIC_BY_NAME.has(raw.relic) ? raw.relic : "",
@@ -182,6 +194,8 @@ let draft = emptyDraft();
 let editingId = "";
 let traitTarget = null;
 let toastTimer = null;
+let unitDrag = { sourceId: "", targetId: "", position: "before" };
+let pointerDrag = null;
 
 function escapeHTML(value) {
   return String(value ?? "")
@@ -225,6 +239,14 @@ function plural(number, singular, pluralForm = `${singular}s`) {
   return `${integer.format(number)} ${number === 1 ? singular : pluralForm}`;
 }
 
+function displayedUnitPoints(stats) {
+  return stats.bases === 0 ? stats.pointsPerBase : stats.total;
+}
+
+function displayedUnitPointsLabel(stats) {
+  return stats.bases === 0 ? "summon cost" : "unit total";
+}
+
 function statMarkup(stats, className = "") {
   return `<div class="${className}">${STAT_KEYS.map(([key, , short]) => `
     <div class="stat-cell">
@@ -235,8 +257,8 @@ function statMarkup(stats, className = "") {
 
 function renderProfiles() {
   const groups = [
-    ["Commanders & specialists", PROFILES.slice(0, 5)],
-    ["Companies & creatures", PROFILES.slice(5)],
+    ["Characters", PROFILES.slice(0, 5)],
+    ["Companies", PROFILES.slice(5)],
   ];
   elements.profileOptions.innerHTML = groups.map(([label, profiles]) => `
     <div class="profile-group">
@@ -247,7 +269,7 @@ function renderProfiles() {
             data-profile="${escapeHTML(profile.name)}" aria-pressed="${draft.profile === profile.name}"
             title="${escapeHTML(describeOption(profile))}">
             <strong>${escapeHTML(profile.name)}</strong>
-            <span>${profile.points} pts / base</span>
+            <span>${profile.points} pts</span>
           </button>`).join("")}
       </div>
     </div>`).join("");
@@ -282,7 +304,7 @@ function renderDraft() {
   const rosterFull = !editingId && state.units.length >= WORKBOOK_META.maxUnits;
 
   renderProfiles();
-  elements.profileSelectionNote.textContent = hasProfile ? `${PROFILE_BY_NAME.get(draft.profile).points} pts / base` : "Required";
+  elements.profileSelectionNote.textContent = hasProfile ? `${PROFILE_BY_NAME.get(draft.profile).points} pts` : "Required";
   elements.identitySection.classList.toggle("is-disabled", !hasProfile);
   elements.traitsSection.classList.toggle("is-disabled", !hasProfile);
   elements.unitName.disabled = !hasProfile;
@@ -317,7 +339,7 @@ function renderDraft() {
     elements.unitPreview.innerHTML = `
       <div class="preview-top">
         <div class="preview-title"><small>${escapeHTML(draft.profile)} · ${plural(stats.bases, "base")}</small><strong>${escapeHTML(title)}</strong></div>
-        <div class="preview-cost"><strong>${integer.format(stats.total)} pts</strong><small>${integer.format(stats.pointsPerBase)} per base</small></div>
+        <div class="preview-cost"><strong>${integer.format(displayedUnitPoints(stats))} pts</strong><small>${displayedUnitPointsLabel(stats)}</small></div>
       </div>
       ${statMarkup(stats, "stat-ribbon")}
       ${issues.length ? `<div class="preview-error">${escapeHTML(issues[0].message)}</div>` : ""}`;
@@ -326,8 +348,10 @@ function renderDraft() {
   elements.editorMode.textContent = editingId ? "Editing unit" : "New unit";
   elements.forgeTitle.textContent = editingId ? (draft.name.trim() || draft.profile || "Edit company") : "Build a company";
   elements.cancelEditButton.hidden = !editingId;
-  elements.saveUnitLabel.textContent = editingId ? "Update unit" : "Add to army";
-  elements.saveUnitCost.textContent = hasProfile ? `${integer.format(stats.total)} pts` : "—";
+  elements.saveUnitIcon.textContent = editingId ? "✓" : "+";
+  elements.saveUnitLabel.textContent = editingId ? "Save unit changes" : "Add unit to army";
+  elements.saveUnitCost.textContent = hasProfile ? `${integer.format(displayedUnitPoints(stats))} pts` : "—";
+  elements.saveUnitCost.hidden = !hasProfile;
   elements.saveUnitButton.disabled = !hasProfile || issues.length > 0 || rosterFull;
   elements.saveUnitButton.title = rosterFull ? `The workbook supports ${WORKBOOK_META.maxUnits} unit entries.` : "";
 }
@@ -377,14 +401,19 @@ function renderStrategies() {
 
 function upgradeChips(unit) {
   const chips = [];
-  if (unit.racialTrait) chips.push(`<span class="upgrade-chip is-racial">Racial · ${escapeHTML(unit.racialTrait)}</span>`);
+  if (unit.racialTrait) chips.push(`<span class="upgrade-chip is-racial"><span class="upgrade-kind">Racial · </span>${escapeHTML(unit.racialTrait)}</span>`);
   for (const trait of unit.traits ?? []) chips.push(`<span class="upgrade-chip">${escapeHTML(trait)}</span>`);
-  if (unit.relic) chips.push(`<span class="upgrade-chip is-relic">Relic · ${escapeHTML(unit.relic)}</span>`);
+  if (unit.relic) chips.push(`<span class="upgrade-chip is-relic"><span class="upgrade-kind">Relic · </span>${escapeHTML(unit.relic)}</span>`);
   return chips.length ? chips.join("") : `<span class="upgrade-chip">No traits or relic</span>`;
 }
 
 function renderRoster(army) {
   const count = state.units.length;
+  elements.rosterList.classList.toggle("is-dense", count > 9);
+  elements.unitCardsButton.disabled = count === 0;
+  elements.unitCardsButton.title = count
+    ? `Download ${plural(count, "unit card")} as a print-ready PDF`
+    : "Add a unit before creating cards";
   elements.emptyRoster.hidden = count > 0;
   elements.rosterFooter.hidden = count === 0;
   elements.unitCount.textContent = plural(count, "unit");
@@ -394,21 +423,23 @@ function renderRoster(army) {
   elements.footerStrategyPoints.textContent = `${integer.format(army.strategyPoints)} pts`;
   elements.footerTotal.textContent = `${integer.format(army.total)} pts`;
 
-  elements.rosterList.innerHTML = army.units.map(({ unit, stats }, index) => {
+  elements.rosterList.innerHTML = army.units.map(({ unit, stats }) => {
     const title = unit.name.trim() || unit.profile;
     return `<article class="unit-card${editingId === unit.id ? " is-editing" : ""}" data-unit-id="${escapeHTML(unit.id)}">
       <div class="unit-card-heading">
         <div class="unit-card-title">
           <h3>${escapeHTML(title)}</h3>
-          <div class="roster-unit-meta"><span>${escapeHTML(unit.profile)}</span><span>${plural(stats.bases, "base")}</span><span>${integer.format(stats.pointsPerBase)} pts each</span></div>
+          <div class="roster-unit-meta"><span>${escapeHTML(unit.profile)}</span><span>${plural(stats.bases, "base")}</span></div>
         </div>
-        <div class="unit-card-cost"><strong>${integer.format(stats.total)} pts</strong><small>unit total</small></div>
+        <div class="unit-card-cost"><strong>${integer.format(displayedUnitPoints(stats))} pts</strong><small>${displayedUnitPointsLabel(stats)}</small></div>
       </div>
       ${statMarkup(stats, "unit-card-stats")}
       <div class="upgrade-row">${upgradeChips(unit)}</div>
       <div class="unit-card-actions" aria-label="Actions for ${escapeHTML(title)}">
-        <button class="card-action" type="button" data-action="up" ${index === 0 ? "disabled" : ""}>↑ Up</button>
-        <button class="card-action" type="button" data-action="down" ${index === count - 1 ? "disabled" : ""}>↓ Down</button>
+        <span class="unit-drag-handle" data-drag-handle role="button" tabindex="0"
+          aria-label="Reorder ${escapeHTML(title)}. Drag or use the arrow keys." title="Drag to reorder; use arrow keys for precise movement">
+          <span aria-hidden="true">⠿</span><span>Drag</span>
+        </span>
         <button class="card-action" type="button" data-action="duplicate">⧉ Duplicate</button>
         <button class="card-action" type="button" data-action="edit">✎ Edit</button>
         <button class="card-action delete" type="button" data-action="delete">Remove</button>
@@ -459,7 +490,7 @@ function selectProfile(profile) {
 }
 
 function setBases(next) {
-  draft.bases = positiveInteger(next, positiveInteger(draft.bases, 1, 999), 999);
+  draft.bases = nonnegativeInteger(next, nonnegativeInteger(draft.bases, 1, 999), 999);
   renderDraft();
 }
 
@@ -495,6 +526,70 @@ function editUnit(id) {
   $(".forge-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function clearUnitDragStyles() {
+  elements.rosterList.classList.remove("is-reordering");
+  elements.rosterList.querySelectorAll(".is-dragging, .is-drop-before, .is-drop-after").forEach((card) => {
+    card.classList.remove("is-dragging", "is-drop-before", "is-drop-after");
+  });
+}
+
+function resetUnitDrag() {
+  clearUnitDragStyles();
+  unitDrag = { sourceId: "", targetId: "", position: "before" };
+  pointerDrag = null;
+}
+
+function markUnitDropTarget(card, clientY) {
+  clearUnitDragStyles();
+  const sourceCard = Array.from(elements.rosterList.querySelectorAll("[data-unit-id]"))
+    .find((item) => item.dataset.unitId === unitDrag.sourceId);
+  sourceCard?.classList.add("is-dragging");
+  if (!card || card.dataset.unitId === unitDrag.sourceId) {
+    unitDrag.targetId = "";
+    return;
+  }
+  const bounds = card.getBoundingClientRect();
+  const position = clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+  unitDrag.targetId = card.dataset.unitId;
+  unitDrag.position = position;
+  card.classList.add(position === "before" ? "is-drop-before" : "is-drop-after");
+}
+
+function commitUnitDrop() {
+  const { sourceId, targetId, position } = unitDrag;
+  const sourceIndex = state.units.findIndex((unit) => unit.id === sourceId);
+  if (sourceIndex < 0 || !targetId || sourceId === targetId) {
+    resetUnitDrag();
+    return;
+  }
+  const [movedUnit] = state.units.splice(sourceIndex, 1);
+  const targetIndex = state.units.findIndex((unit) => unit.id === targetId);
+  if (targetIndex < 0) {
+    state.units.splice(sourceIndex, 0, movedUnit);
+    resetUnitDrag();
+    return;
+  }
+  state.units.splice(targetIndex + (position === "after" ? 1 : 0), 0, movedUnit);
+  resetUnitDrag();
+  renderAll();
+  showToast(`${movedUnit.name || movedUnit.profile} moved.`);
+}
+
+function moveUnitWithKeyboard(id, direction) {
+  const index = state.units.findIndex((unit) => unit.id === id);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= state.units.length) return;
+  [state.units[index], state.units[target]] = [state.units[target], state.units[index]];
+  const unit = state.units[target];
+  renderAll();
+  showToast(`${unit.name || unit.profile} moved.`);
+  requestAnimationFrame(() => {
+    const card = Array.from(elements.rosterList.querySelectorAll("[data-unit-id]"))
+      .find((item) => item.dataset.unitId === id);
+    card?.querySelector("[data-drag-handle]")?.focus();
+  });
+}
+
 function rosterAction(id, action) {
   const index = state.units.findIndex((unit) => unit.id === id);
   if (index < 0) return;
@@ -521,10 +616,6 @@ function rosterAction(id, action) {
         showToast(`${unit.name || unit.profile} restored.`);
       },
     });
-  } else if (action === "up" && index > 0) {
-    [state.units[index - 1], state.units[index]] = [state.units[index], state.units[index - 1]];
-  } else if (action === "down" && index < state.units.length - 1) {
-    [state.units[index], state.units[index + 1]] = [state.units[index + 1], state.units[index]];
   }
   renderAll();
 }
@@ -609,7 +700,35 @@ function downloadArmy() {
   anchor.download = `${slug || "fantastic-battles-army"}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
-  showToast("Army file downloaded.");
+  showToast("Army saved to a file.");
+}
+
+function downloadUnitCards() {
+  if (!state.units.length) {
+    showToast("Add a unit before creating cards.");
+    return;
+  }
+  const invalidUnit = state.units.find((unit) => validateUnit(unit).length > 0);
+  if (invalidUnit) {
+    showToast(`Fix ${invalidUnit.name.trim() || invalidUnit.profile || "the invalid unit"} before creating cards.`);
+    return;
+  }
+
+  try {
+    const cards = buildUnitCardData(state.units);
+    const pdf = createUnitCardsPdf(cards);
+    const url = URL.createObjectURL(pdf);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = unitCardsFileName(state.armyName);
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    showToast(`${plural(cards.length, "unit card")} PDF downloaded.`);
+  } catch {
+    showToast("The unit cards PDF could not be created.");
+  }
 }
 
 async function importArmy(file) {
@@ -620,36 +739,12 @@ async function importArmy(file) {
     state = sanitiseState(raw);
     resetDraft();
     renderAll();
-    showToast(`Imported ${plural(state.units.length, "unit")}.`);
+    showToast(`Loaded ${plural(state.units.length, "unit")}.`);
   } catch {
-    showToast("That file could not be imported.");
+    showToast("That army file could not be loaded.");
   } finally {
     elements.importFile.value = "";
   }
-}
-
-async function copyRoster() {
-  const text = rosterText(state);
-  let copied = false;
-  try {
-    await navigator.clipboard.writeText(text);
-    copied = true;
-  } catch {
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.append(area);
-    area.select();
-    try {
-      copied = Boolean(document.execCommand("copy"));
-    } catch {
-      copied = false;
-    } finally {
-      area.remove();
-    }
-  }
-  showToast(copied ? "Roster copied to the clipboard." : "Copy failed. Try Export instead.");
 }
 
 elements.armyName.addEventListener("input", () => {
@@ -673,12 +768,12 @@ elements.unitName.addEventListener("input", () => {
   const title = elements.unitPreview.querySelector(".preview-title strong");
   if (title) title.textContent = draft.name.trim() || draft.profile;
   elements.forgeTitle.textContent = editingId ? (draft.name.trim() || draft.profile || "Edit company") : "Build a company";
-  elements.saveUnitCost.textContent = draft.profile ? `${integer.format(stats.total)} pts` : "—";
+  elements.saveUnitCost.textContent = draft.profile ? `${integer.format(displayedUnitPoints(stats))} pts` : "—";
 });
 
 elements.unitBases.addEventListener("change", () => setBases(elements.unitBases.value));
-byId("bases-minus").addEventListener("click", () => setBases((Number(draft.bases) || 1) - 1));
-byId("bases-plus").addEventListener("click", () => setBases((Number(draft.bases) || 1) + 1));
+byId("bases-minus").addEventListener("click", () => setBases(Number(draft.bases) - 1));
+byId("bases-plus").addEventListener("click", () => setBases(Number(draft.bases) + 1));
 elements.racialTraitButton.addEventListener("click", () => openTraitPicker("racial"));
 elements.additionalTraits.addEventListener("click", (event) => {
   const button = event.target.closest("[data-trait-slot]");
@@ -713,6 +808,49 @@ elements.rosterList.addEventListener("click", (event) => {
   if (action && card) rosterAction(card.dataset.unitId, action.dataset.action);
 });
 
+elements.rosterList.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  const handle = event.target.closest("[data-drag-handle]");
+  const card = handle?.closest("[data-unit-id]");
+  if (!card) return;
+  event.preventDefault();
+  unitDrag = { sourceId: card.dataset.unitId, targetId: "", position: "before" };
+  pointerDrag = { pointerId: event.pointerId, handle };
+  try {
+    handle.setPointerCapture(event.pointerId);
+  } catch {
+    // Synthetic pointer events used by tests do not own a native pointer capture.
+  }
+  elements.rosterList.classList.add("is-reordering");
+  card.classList.add("is-dragging");
+});
+
+elements.rosterList.addEventListener("pointermove", (event) => {
+  if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+  event.preventDefault();
+  if (event.clientY < 70) window.scrollBy(0, -14);
+  else if (event.clientY > window.innerHeight - 70) window.scrollBy(0, 14);
+  const card = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-unit-id]");
+  markUnitDropTarget(card, event.clientY);
+});
+
+elements.rosterList.addEventListener("pointerup", (event) => {
+  if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) return;
+  const { handle } = pointerDrag;
+  if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+  commitUnitDrop();
+});
+
+elements.rosterList.addEventListener("pointercancel", resetUnitDrag);
+
+elements.rosterList.addEventListener("keydown", (event) => {
+  const handle = event.target.closest("[data-drag-handle]");
+  const card = handle?.closest("[data-unit-id]");
+  if (!card || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+  event.preventDefault();
+  moveUnitWithKeyboard(card.dataset.unitId, event.key === "ArrowUp" ? -1 : 1);
+});
+
 elements.checksToggle.addEventListener("click", () => {
   const expanded = elements.checksToggle.getAttribute("aria-expanded") === "true";
   elements.checksToggle.setAttribute("aria-expanded", String(!expanded));
@@ -737,7 +875,6 @@ elements.traitDialog.addEventListener("keydown", (event) => {
   }
 });
 
-byId("copy-button").addEventListener("click", copyRoster);
 byId("export-button").addEventListener("click", downloadArmy);
 byId("import-button").addEventListener("click", () => elements.importFile.click());
 elements.importFile.addEventListener("change", () => {
@@ -745,12 +882,13 @@ elements.importFile.addEventListener("change", () => {
   if (file) importArmy(file);
 });
 byId("print-button").addEventListener("click", () => window.print());
+elements.unitCardsButton.addEventListener("click", downloadUnitCards);
 byId("new-button").addEventListener("click", () => {
   const hasWork = state.units.length
     || state.strategies.length
     || state.armyName.trim()
     || state.pointsLimit !== defaultState().pointsLimit;
-  if (hasWork && !window.confirm("Start a new army? Your current army will be cleared from this device.")) return;
+  if (hasWork && !window.confirm("Have you saved your current army? Starting a new army will clear it from this device.")) return;
   state = defaultState();
   resetDraft();
   renderAll();
@@ -767,4 +905,6 @@ globalThis.__FB_MUSTER__ = Object.freeze({
   getState: () => structuredClone(state),
   getDraft: () => structuredClone(draft),
   calculateArmy: () => calculateArmy(state),
+  buildUnitCardData: () => buildUnitCardData(state.units),
+  createUnitCardsPdf: () => createUnitCardsPdf(buildUnitCardData(state.units)),
 });

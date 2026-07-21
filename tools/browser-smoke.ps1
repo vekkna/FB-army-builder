@@ -34,6 +34,7 @@ try {
     click('#new-button');
     window.confirm = confirm;
   }
+  const cardsDisabledWhenEmpty = document.querySelector('#unit-cards-button').disabled;
 
   click('[data-profile="Formed company"]');
   input('#unit-name', 'The Iron Guard', 'input');
@@ -51,7 +52,37 @@ try {
 
   click('[data-strategy="Agent"]');
 
+  const orderBeforeDrag = globalThis.__FB_MUSTER__.getState().units.map((unit) => unit.name);
+  const firstHandle = document.querySelector('[data-drag-handle]');
+  const secondCard = document.querySelectorAll('[data-unit-id]')[1];
+  secondCard.scrollIntoView({ block: 'center' });
+  const firstBounds = firstHandle.getBoundingClientRect();
+  const secondBounds = secondCard.getBoundingClientRect();
+  firstHandle.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 42, pointerType: 'mouse', button: 0,
+    clientX: firstBounds.left + 2, clientY: firstBounds.top + 2,
+  }));
+  document.querySelector('#roster-list').dispatchEvent(new PointerEvent('pointermove', {
+    bubbles: true, cancelable: true, pointerId: 42, pointerType: 'mouse', buttons: 1,
+    clientX: secondBounds.left + 2, clientY: secondBounds.bottom - 1,
+  }));
+  document.querySelector('#roster-list').dispatchEvent(new PointerEvent('pointerup', {
+    bubbles: true, cancelable: true, pointerId: 42, pointerType: 'mouse', button: 0,
+    clientX: secondBounds.left + 2, clientY: secondBounds.bottom - 1,
+  }));
+  const orderAfterDrag = globalThis.__FB_MUSTER__.getState().units.map((unit) => unit.name);
+
   const army = globalThis.__FB_MUSTER__.calculateArmy();
+  const cardData = globalThis.__FB_MUSTER__.buildUnitCardData();
+  const cardPdf = globalThis.__FB_MUSTER__.createUnitCardsPdf();
+  let downloadedCardFile = '';
+  const originalAnchorClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () { downloadedCardFile = this.download; };
+  try {
+    click('#unit-cards-button');
+  } finally {
+    HTMLAnchorElement.prototype.click = originalAnchorClick;
+  }
   return {
     units: globalThis.__FB_MUSTER__.getState().units.length,
     total: army.total,
@@ -60,6 +91,17 @@ try {
     issues: army.issues.length,
     displayedTotal: document.querySelector('#points-total').textContent,
     cards: document.querySelectorAll('.unit-card').length,
+    emptyStateHidden: document.querySelector('#empty-roster').hidden && getComputedStyle(document.querySelector('#empty-roster')).display === 'none',
+    hasPerBaseLabel: document.body.textContent.includes('/ base'),
+    cardsDisabledWhenEmpty,
+    cardsButtonEnabled: !document.querySelector('#unit-cards-button').disabled,
+    cardCount: cardData.length,
+    cardPdfType: cardPdf.type,
+    cardPdfSize: cardPdf.size,
+    downloadedCardFile,
+    dragReordered: orderBeforeDrag[0] === orderAfterDrag[1] && orderBeforeDrag[1] === orderAfterDrag[0],
+    dragHandles: document.querySelectorAll('[data-drag-handle]').length,
+    directionButtons: document.querySelectorAll('[data-action="up"], [data-action="down"]').length,
   };
 })()
 '@
@@ -98,6 +140,12 @@ try {
   if ($result.total -ne 243 -or $result.displayedTotal -ne "243") { throw "Expected a 243-point army." }
   if ($result.breakPoint -ne 3) { throw "Expected break point 3." }
   if ($result.generals -ne 1 -or $result.issues -ne 0) { throw "Expected a legal army with one general." }
+  if (-not $result.emptyStateHidden) { throw "Expected the empty roster message to disappear after adding a unit." }
+  if ($result.hasPerBaseLabel) { throw "Expected points labels to omit '/ base'." }
+  if (-not $result.cardsDisabledWhenEmpty -or -not $result.cardsButtonEnabled) { throw "Expected Cards to be disabled for an empty roster and enabled after adding units." }
+  if ($result.cardCount -ne 2 -or $result.cardPdfType -ne "application/pdf" -or $result.cardPdfSize -lt 1000) { throw "Expected two generated cards in a non-empty PDF." }
+  if ($result.downloadedCardFile -ne "fantastic-battles-army-unit-cards.pdf") { throw "Expected the Cards action to download the army-named PDF." }
+  if (-not $result.dragReordered -or $result.dragHandles -ne 2 -or $result.directionButtons -ne 0) { throw "Expected drag handles to reorder units without Up/Down buttons." }
 
   $result | ConvertTo-Json -Compress
 }
