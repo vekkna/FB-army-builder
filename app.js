@@ -314,9 +314,11 @@ function renderRelicOptions() {
   elements.unitRelic.innerHTML = `<option value="">No relic</option>${RELICS.map((relic) => {
     const detail = describeOption(relic, { includePoints: false });
     const suffix = detail ? ` · ${detail}` : "";
-    return `<option value="${escapeHTML(relic.name)}">${escapeHTML(relic.name)} (+${relic.points} pts${escapeHTML(suffix)})</option>`;
+    return `<option value="${escapeHTML(relic.name)}" title="${escapeHTML(relic.description)}">${escapeHTML(relic.name)} (+${relic.points} pts${escapeHTML(suffix)})</option>`;
   }).join("")}`;
   elements.unitRelic.value = draft.relic;
+  const selectedRelic = RELIC_BY_NAME.get(draft.relic);
+  elements.unitRelic.title = selectedRelic?.description ?? "Choose a relic";
 }
 
 function renderDraft() {
@@ -342,10 +344,12 @@ function renderDraft() {
   elements.racialTraitButton.disabled = !hasProfile || hero;
   elements.racialTraitButton.classList.toggle("is-filled", Boolean(draft.racialTrait));
   elements.racialTraitButton.innerHTML = pickerMarkup("Choose a trait", draft.racialTrait, "Racial");
+  elements.racialTraitButton.title = TRAIT_BY_NAME.get(draft.racialTrait)?.description ?? "Choose a racial trait";
 
   elements.additionalTraits.innerHTML = Array.from({ length: WORKBOOK_META.maxAdditionalTraits }, (_, index) => {
     const name = draft.traits[index] ?? "";
-    return `<button class="trait-slot${name ? " is-filled" : ""}" type="button" data-trait-slot="${index}" ${!hasProfile || hero ? "disabled" : ""}>
+    const title = TRAIT_BY_NAME.get(name)?.description ?? `Choose trait ${index + 1}`;
+    return `<button class="trait-slot${name ? " is-filled" : ""}" type="button" data-trait-slot="${index}" title="${escapeHTML(title)}" ${!hasProfile || hero ? "disabled" : ""}>
       ${pickerMarkup(`Choose trait ${index + 1}`, name, `Trait ${index + 1}`)}
     </button>`;
   }).join("");
@@ -414,7 +418,8 @@ function renderStrategies() {
   elements.strategyOptions.innerHTML = STRATEGIES.map((strategy) => {
     const selected = state.strategies.includes(strategy.name);
     const unavailable = !selected && state.strategies.length >= WORKBOOK_META.maxStrategies;
-    const title = unavailable ? "Remove a selected strategy before adding another" : `${selected ? "Remove" : "Add"} ${strategy.name}`;
+    const actionHint = unavailable ? "Remove a selected strategy before adding another" : `${selected ? "Remove" : "Add"} ${strategy.name}`;
+    const title = `${strategy.description}\n\n${actionHint}`;
     return `<button class="strategy-option${selected ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}" type="button"
       data-strategy="${escapeHTML(strategy.name)}" aria-pressed="${selected}" ${unavailable ? 'disabled aria-disabled="true"' : ""} title="${escapeHTML(title)}">
       <strong>${escapeHTML(strategy.name)}</strong>
@@ -425,9 +430,18 @@ function renderStrategies() {
 
 function upgradeChips(unit) {
   const chips = [];
-  if (unit.racialTrait) chips.push(`<span class="upgrade-chip is-racial"><span class="upgrade-kind">Racial · </span>${escapeHTML(unit.racialTrait)}</span>`);
-  for (const trait of unit.traits ?? []) chips.push(`<span class="upgrade-chip">${escapeHTML(trait)}</span>`);
-  if (unit.relic) chips.push(`<span class="upgrade-chip is-relic"><span class="upgrade-kind">Relic · </span>${escapeHTML(unit.relic)}</span>`);
+  if (unit.racialTrait) {
+    const description = TRAIT_BY_NAME.get(unit.racialTrait)?.description ?? "";
+    chips.push(`<span class="upgrade-chip is-racial" title="${escapeHTML(description)}"><span class="upgrade-kind">Racial · </span>${escapeHTML(unit.racialTrait)}</span>`);
+  }
+  for (const trait of unit.traits ?? []) {
+    const description = TRAIT_BY_NAME.get(trait)?.description ?? "";
+    chips.push(`<span class="upgrade-chip" title="${escapeHTML(description)}">${escapeHTML(trait)}</span>`);
+  }
+  if (unit.relic) {
+    const relic = RELIC_BY_NAME.get(unit.relic);
+    chips.push(`<span class="upgrade-chip is-relic" title="${escapeHTML(relic?.description ?? "")}"><span class="upgrade-kind">Relic · </span>${escapeHTML(unit.relic)}</span>`);
+  }
   return chips.length ? chips.join("") : `<span class="upgrade-chip">No traits or relic</span>`;
 }
 
@@ -668,7 +682,7 @@ function renderTraitResults() {
       : getTraitAvailability(trait.name, draft, traitTarget.current);
     if (availability.available) availableCount += 1;
     const detail = describeOption(trait, { includePoints: false }) || "No direct stat modifier";
-    return `<button class="trait-result${current ? " is-selected" : ""}" type="button" data-trait-name="${escapeHTML(trait.name)}"
+    return `<button class="trait-result${current ? " is-selected" : ""}" type="button" data-trait-name="${escapeHTML(trait.name)}" title="${escapeHTML(trait.description)}"
       ${availability.available ? "" : "disabled"}>
       <span class="trait-result-name">${current ? "✓ " : ""}${escapeHTML(trait.name)}</span>
       <span class="trait-result-detail">${escapeHTML(detail)}</span>
