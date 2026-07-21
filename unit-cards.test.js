@@ -6,6 +6,7 @@ import {
   CARDS_PER_PAGE,
   createUnitCardsPdf,
   displayedCardAbilities,
+  UNIT_CARD_SIZE,
   unitCardPageCount,
   unitCardsFileName,
 } from "./unit-cards.js";
@@ -67,6 +68,9 @@ test("unit-card PDF is valid, paginated, and contains roster text", async () => 
   const text = new TextDecoder("windows-1252").decode(await pdf.arrayBuffer());
   assert.ok(text.startsWith("%PDF-1.4"));
   assert.match(text, /\/Count 1\b/);
+  assert.match(text, /\/ViewerPreferences << \/PrintScaling \/None >>/);
+  assert.deepEqual(UNIT_CARD_SIZE, { width: 68, height: 47.91, unit: "mm" });
+  assert.equal(CARDS_PER_PAGE, 16);
   assert.ok(text.includes("(Guard \\(North\\))"));
   const crossReferenceOffset = Number(text.match(/startxref\n(\d+)/)?.[1]);
   assert.equal(text.slice(crossReferenceOffset, crossReferenceOffset + 4), "xref");

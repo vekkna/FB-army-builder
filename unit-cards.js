@@ -2,14 +2,18 @@ import { calculateUnit } from "./calculator.js";
 
 const MM = 72 / 25.4;
 const A4_LANDSCAPE = [297 * MM, 210 * MM];
-const CARD_W = 44 * MM;
-const CARD_H = 31.5 * MM;
+const DESIGN_CARD_W = 44 * MM;
+const DESIGN_CARD_H = 31 * MM;
+const CARD_WIDTH_MM = 68;
+const CARD_SCALE = CARD_WIDTH_MM / 44;
+const CARD_W = CARD_WIDTH_MM * MM;
+const CARD_H = DESIGN_CARD_H * CARD_SCALE;
 const GRID_GAP = 2 * MM;
 const GRID_COLUMNS = Math.max(1, Math.floor((A4_LANDSCAPE[0] + GRID_GAP) / (CARD_W + GRID_GAP)));
 const GRID_ROWS = Math.max(1, Math.floor((A4_LANDSCAPE[1] + GRID_GAP) / (CARD_H + GRID_GAP)));
 
 export const CARDS_PER_PAGE = GRID_COLUMNS * GRID_ROWS;
-export const UNIT_CARD_SIZE = Object.freeze({ width: 44, height: 31.5, unit: "mm" });
+export const UNIT_CARD_SIZE = Object.freeze({ width: 68, height: 47.91, unit: "mm" });
 
 function clean(value) {
   if (value === null || value === undefined) return "";
@@ -229,15 +233,15 @@ class PdfCanvas {
   }
 }
 
-function drawCard(canvas, unit, x, y) {
-  canvas.rect(x, y, CARD_W, CARD_H, 0.08, 1, 0.6, 3);
-  const top = y + CARD_H;
+function drawCardContent(canvas, unit, x, y) {
+  canvas.rect(x, y, DESIGN_CARD_W, DESIGN_CARD_H, 0.08, 1, 0.6, 3);
+  const top = y + DESIGN_CARD_H;
   const titleMargin = 3.5;
   const resolveBoxSize = 10 * MM;
   const bandHeight = resolveBoxSize;
-  canvas.rect(x + titleMargin, top - bandHeight - titleMargin, CARD_W - 2 * titleMargin, bandHeight, 0.58, 0.925, 0.3, 1.5);
+  canvas.rect(x + titleMargin, top - bandHeight - titleMargin, DESIGN_CARD_W - 2 * titleMargin, bandHeight, 0.58, 0.925, 0.3, 1.5);
 
-  const resolveX = x + CARD_W - titleMargin - resolveBoxSize;
+  const resolveX = x + DESIGN_CARD_W - titleMargin - resolveBoxSize;
   const resolveY = top - titleMargin - resolveBoxSize;
   canvas.add(`0.080 G 0.28 w 1.000 g ${topRightRoundedRect(resolveX, resolveY, resolveBoxSize, resolveBoxSize, 1.5)} B`);
 
@@ -254,12 +258,12 @@ function drawCard(canvas, unit, x, y) {
   const statHeight = 15.5;
   const statY = top - titleMargin - bandHeight - 1 - statHeight;
   const statX = x + 3.5;
-  const statWidth = (CARD_W - 7) / 5;
+  const statWidth = (DESIGN_CARD_W - 7) / 5;
   const statItems = [
     ["RES", unit.resolve], ["MOV", unit.move], ["MEL", unit.melee],
     ["SHT", `${clean(unit.short)}/${clean(unit.long)}`], ["DEF", unit.defence],
   ];
-  canvas.rect(statX, statY, CARD_W - 7, statHeight, 0.6, 0.975, 0.28, 1);
+  canvas.rect(statX, statY, DESIGN_CARD_W - 7, statHeight, 0.6, 0.975, 0.28, 1);
   statItems.forEach(([label, value], index) => {
     const statCellX = statX + index * statWidth;
     if (index) canvas.line(statCellX, statY, statCellX, statY + statHeight, 0.22, 0.68);
@@ -272,10 +276,10 @@ function drawCard(canvas, unit, x, y) {
   const abilities = displayedCardAbilities(unit);
   const areaX = x + 3.5;
   const areaY = y + 3.5;
-  const areaWidth = CARD_W - 7;
+  const areaWidth = DESIGN_CARD_W - 7;
   const areaHeight = statY - 2 - areaY;
   if (!abilities.length) {
-    canvas.text(x + CARD_W / 2, areaY + areaHeight / 2 - 1.6, "NO TRAITS", 4.6, "F3", 0.48, "center");
+    canvas.text(x + DESIGN_CARD_W / 2, areaY + areaHeight / 2 - 1.6, "NO TRAITS", 4.6, "F3", 0.48, "center");
     return;
   }
 
@@ -299,6 +303,12 @@ function drawCard(canvas, unit, x, y) {
       canvas.text(cellX + cellWidth / 2, lineY, line, fitted.size, "F3", 0, "center");
     });
   });
+}
+
+function drawCard(canvas, unit, x, y) {
+  canvas.add(`q ${CARD_SCALE.toFixed(6)} 0 0 ${CARD_SCALE.toFixed(6)} ${x.toFixed(3)} ${y.toFixed(3)} cm`);
+  drawCardContent(canvas, unit, 0, 0);
+  canvas.add("Q");
 }
 
 function buildPdfPages(units) {
@@ -328,7 +338,7 @@ export function createUnitCardsPdf(units) {
   if (!pages.length) throw new Error("Cannot create a PDF without any cards.");
 
   const objects = new Map();
-  objects.set(1, latin1Bytes("<< /Type /Catalog /Pages 2 0 R >>"));
+  objects.set(1, latin1Bytes("<< /Type /Catalog /Pages 2 0 R /ViewerPreferences << /PrintScaling /None >> >>"));
   objects.set(3, latin1Bytes("<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>"));
   objects.set(4, latin1Bytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"));
   objects.set(5, latin1Bytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"));

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#18231f">
+    <meta name="description" content="Plan and print a Fantastic Battles army deployment.">
+    <title>Plan Deployment · Fantastic Battles Muster</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="deployment.css">
+  </head>
+
+  <body class="deployment-page">
+    <a class="skip-link" href="#deployment-zone">Skip to deployment zone</a>
+    <header class="deployment-header">
+      <a class="back-to-muster" href="index.html" aria-label="Return to the army builder">
+        <span aria-hidden="true">&#8592;</span>
+        <span>Back to muster</span>
+      </a>
+      <div class="deployment-brand">
+        <p class="eyebrow">Fantastic Battles</p>
+        <h1>Plan Deployment</h1>
+      </div>
+      <div class="deployment-actions">
+        <button class="deployment-action" id="reset-deployment" type="button">
+          <span aria-hidden="true">&#8634;</span><span>Reset layout</span>
+        </button>
+        <button class="deployment-action is-primary" id="print-deployment" type="button">
+          <span aria-hidden="true">&#9635;</span><span>Print plan</span>
+        </button>
+      </div>
+    </header>
+    <main class="deployment-main">
+      <section class="deployment-intro" aria-labelledby="deployment-title">
+        <div>
+          <p class="step-label">Current muster</p>
+          <h2 id="deployment-title">Untitled army</h2>
+          <p>Drag every base independently. Your layout is kept on this device and follows units by their roster
+            identity.</p>
+        </div>
+        <div class="deployment-totals" aria-live="polite">
+          <div><strong id="company-piece-count">0</strong><span>company bases</span></div>
+          <div><strong id="character-piece-count">0</strong><span>characters</span></div>
+          <div><strong>156 × 36</strong><span>centimetres</span></div>
+        </div>
+      </section>
+      <section class="deployment-planner" aria-labelledby="zone-title">
+        <div class="planner-heading">
+          <div>
+            <p class="step-label">Deployment zone</p>
+            <h2 id="zone-title">Plan your deployment</h2>
+          </div>
+          <div class="planner-guidance">
+            <p><span aria-hidden="true">&#9633;</span> Drag empty space to select &nbsp;·&nbsp; Drag a selection to move it</p>
+            <div class="selection-tools">
+              <strong id="selection-count">0 selected</strong>
+              <button id="clear-selection" type="button" disabled>Clear</button>
+            </div>
+          </div>
+        </div>
+        <div class="deployment-scroll" id="deployment-scroll" tabindex="0"
+          aria-label="Horizontally scrollable deployment plan">
+          <div class="zone-canvas">
+            <div class="zone-width-label"><span>156 cm</span></div>
+            <div class="deployment-zone" id="deployment-zone" aria-label="156 by 36 centimetre deployment zone">
+              <div class="battlefield-edge" aria-hidden="true"><span>&#8593;</span> Towards battlefield</div>
+              <div class="selection-marquee" id="selection-marquee" hidden aria-hidden="true"></div>
+            </div>
+            <div class="player-edge" aria-hidden="true">Your table edge</div>
+            <div class="zone-depth-label" aria-hidden="true"><span>36 cm deep</span></div>
+          </div>
+        </div>
+        <p class="deployment-empty" id="deployment-empty" hidden> There are no deployable bases in this muster. Add
+          units in the army builder, then return here. </p>
+        <p class="deployment-warning" id="deployment-overflow" hidden> This force is larger than the physical deployment
+          zone. Some initial markers overlap; drag them to plan reserves or alternate formations. </p>
+        <p class="sr-status" id="deployment-status" aria-live="polite"></p>
+      </section>
+      <section class="deployment-legend" aria-labelledby="legend-title">
+        <div class="legend-heading">
+          <div>
+            <p class="step-label">Marker key</p>
+            <h2 id="legend-title">Your force</h2>
+          </div>
+          <p>Squares are company bases. Circles are individual characters.</p>
+        </div>
+        <ol class="legend-list" id="deployment-legend"></ol>
+      </section>
+      <section class="summons-panel" id="summons-panel" aria-labelledby="summons-title" hidden>
+        <div>
+          <p class="step-label">Off-board</p>
+          <h2 id="summons-title">Summon templates</h2>
+        </div>
+        <p>These zero-base entries do not begin in the deployment zone.</p>
+        <ul id="summons-list"></ul>
+      </section>
+    </main>
+    <script type="module" src="deployment-page.js"></script>
+  </body>
+
+</html>

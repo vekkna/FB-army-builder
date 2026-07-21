@@ -20,7 +20,8 @@ Then open <http://localhost:8000>. No install or build step is required.
 - Warlord/Mage-lord, Captain, Magic-user, and Rogue composition checks
 - Up to 25 unit entries and three strategies, matching the source sheet
 - Reordering, editing, duplicating, and removing units
-- One-click, print-ready unit-card PDFs (44 × 31.5 mm cards on landscape A4)
+- One-click, print-ready unit-card PDFs (68 × 47.9 mm cards, four across on landscape A4)
+- A draggable 156 × 36 cm deployment planner with scale-correct bases and low-ink printing
 - Automatic local saving plus JSON save/load and a print layout
 
 ## Deliberate repairs to legacy spreadsheet edge cases

@@ -27,6 +27,10 @@ import {
   createUnitCardsPdf,
   unitCardsFileName,
 } from "./unit-cards.js";
+import {
+  DEPLOYMENT_STORAGE_KEY,
+  sanitiseDeploymentData,
+} from "./deployment.js";
 
 const STORAGE_KEY = "fantastic-battles-muster:v1";
 const $ = (selector) => document.querySelector(selector);
@@ -211,6 +215,26 @@ function persist() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     // The app remains usable when storage is blocked.
+  }
+}
+
+function storedDeployment() {
+  try {
+    return sanitiseDeploymentData(JSON.parse(localStorage.getItem(DEPLOYMENT_STORAGE_KEY) || "{}"));
+  } catch {
+    return sanitiseDeploymentData();
+  }
+}
+
+function replaceStoredDeployment(raw) {
+  try {
+    if (raw && typeof raw === "object") {
+      localStorage.setItem(DEPLOYMENT_STORAGE_KEY, JSON.stringify(sanitiseDeploymentData(raw)));
+    } else {
+      localStorage.removeItem(DEPLOYMENT_STORAGE_KEY);
+    }
+  } catch {
+    // Saving and loading the muster still works when storage is unavailable.
   }
 }
 
@@ -691,6 +715,7 @@ function downloadArmy() {
     version: 1,
     exportedAt: new Date().toISOString(),
     army: state,
+    deployment: storedDeployment(),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -737,6 +762,7 @@ async function importArmy(file) {
     const raw = parsed?.format === "fantastic-battles-muster" ? parsed.army : parsed;
     if (!raw || typeof raw !== "object" || !Array.isArray(raw.units)) throw new Error("Not an army file");
     state = sanitiseState(raw);
+    replaceStoredDeployment(parsed?.format === "fantastic-battles-muster" ? parsed.deployment : raw.deployment);
     resetDraft();
     renderAll();
     showToast(`Loaded ${plural(state.units.length, "unit")}.`);
@@ -890,6 +916,7 @@ byId("new-button").addEventListener("click", () => {
     || state.pointsLimit !== defaultState().pointsLimit;
   if (hasWork && !window.confirm("Have you saved your current army? Starting a new army will clear it from this device.")) return;
   state = defaultState();
+  replaceStoredDeployment();
   resetDraft();
   renderAll();
   showToast("New army ready.");
