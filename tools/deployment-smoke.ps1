@@ -53,8 +53,9 @@ try {
     awaitPromise = $true
   })
   $expression = @'
-(() => {
+(async () => {
   if (!globalThis.__FB_DEPLOYMENT__) throw new Error('Deployment page did not initialise.');
+  globalThis.__FB_DEPLOYMENT__.reset();
   const initial = globalThis.__FB_DEPLOYMENT__.getPlan();
   const zone = document.querySelector('#deployment-zone');
   const square = zone.querySelector('.deployment-piece.is-company');
@@ -75,6 +76,16 @@ try {
     bubbles: true, cancelable: true, pointerId: 71, pointerType: 'mouse', buttons: 1,
     clientX: bounds.right - 1, clientY: bounds.bottom - 1,
   }));
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const liveTranslate = getComputedStyle(square).translate;
+  const liveInlineTranslate = square.style.translate;
+  const liveDraggingClass = square.classList.contains('is-dragging');
+  const liveBounds = square.getBoundingClientRect();
+  const liveVisualMoved = Math.abs(liveBounds.left - squareBounds.left) > 1 || Math.abs(liveBounds.top - squareBounds.top) > 1;
+  const livePrintMatches = matchMedia('print').matches;
+  const livePiece = globalThis.__FB_DEPLOYMENT__.getPlan().pieces.find(({ id }) => id === pieceId);
+  const initialPiece = initial.pieces.find(({ id }) => id === pieceId);
+  const liveModelUncommitted = livePiece.x === initialPiece.x && livePiece.y === initialPiece.y;
   zone.dispatchEvent(new PointerEvent('pointerup', {
     bubbles: true, cancelable: true, pointerId: 71, pointerType: 'mouse', button: 0,
     clientX: bounds.right - 1, clientY: bounds.bottom - 1,
@@ -144,6 +155,12 @@ try {
     savedY: saved.positions[pieceId].y,
     groupSelected: groupSelection.length,
     groupMovedTogether,
+    liveTranslate,
+    liveInlineTranslate,
+    liveDraggingClass,
+    liveVisualMoved,
+    livePrintMatches,
+    liveModelUncommitted,
     armyTitle: document.querySelector('#deployment-title').textContent,
     scrollClientWidth: document.querySelector('#deployment-scroll').clientWidth,
     scrollWidth: document.querySelector('#deployment-scroll').scrollWidth,
@@ -157,11 +174,12 @@ try {
 
   if ($value.pieces -ne 5 -or $value.companies -ne 4 -or $value.characters -ne 1) { throw "Expected four company bases and one character." }
   if ($value.squares -ne 4 -or $value.circles -ne 1 -or $value.legendItems -ne 2) { throw "Deployment DOM markers or legend were incorrect." }
-  if ($value.legendText -notlike "*Relic: Blade of Unsurpassable Power*") { throw "Expected character relics in the deployment key." }
-  if ($value.characterTooltip -notlike "*relic: Blade of Unsurpassable Power*") { throw "Expected character relics in marker tooltips." }
+  if ($value.legendText -notlike "*Relic: Mystical Tome of Revelation*") { throw "Expected character relics in the deployment key." }
+  if ($value.characterTooltip -notlike "*relic: Mystical Tome of Revelation*") { throw "Expected character relics in marker tooltips." }
   if ([Math]::Abs($value.ratio - (13 / 3)) -gt .02 -or [Math]::Abs($value.squareRatio - 1) -gt .02) { throw "Deployment geometry was not proportional." }
   if ($value.characterLayer -le $value.squareLayer) { throw "Expected character markers to sit above company bases." }
   if ($value.movedX -ne 150 -or $value.movedY -ne 30 -or $value.savedX -ne 150 -or $value.savedY -ne 30) { throw "Drag did not clamp and persist at the zone boundary." }
+  if (-not $value.liveVisualMoved -or $value.liveTranslate -eq "none" -or -not $value.liveInlineTranslate -or -not $value.liveDraggingClass -or -not $value.liveModelUncommitted) { throw "Expected compositor-only live dragging before coordinates commit on release (translate: $($value.liveTranslate); inline: $($value.liveInlineTranslate); visual: $($value.liveVisualMoved); class: $($value.liveDraggingClass); model: $($value.liveModelUncommitted); print: $($value.livePrintMatches))." }
   if ($value.groupSelected -ne 5 -or -not $value.groupMovedTogether) { throw "Expected marquee selection and group dragging to move all markers together." }
 
   [void](Invoke-CdpCommand -Method "Emulation.setEmulatedMedia" -Params @{ media = "print" })

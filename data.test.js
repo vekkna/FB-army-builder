@@ -10,6 +10,10 @@ test("every relic includes tooltip rules text", () => {
     RELICS.find(({ name }) => name === "Phoenix Bow of Precision").description,
     /Any unmodified roll of 6 causes the target character to lose 1 Resolve\.$/,
   );
+  assert.equal(
+    RELICS.find(({ name }) => name === "Mystical Tome of Revelation").description,
+    "A Mage-lord or Magic-user gains one additional spell level.",
+  );
 });
 
 test("every strategy includes tooltip rules text", () => {

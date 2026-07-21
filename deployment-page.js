@@ -249,16 +249,15 @@ function loadCurrentPlan(useSavedPositions = true) {
   persistDeployment();
 }
 
-function boardCoordinates(event) {
-  const bounds = elements.zone.getBoundingClientRect();
+function boardCoordinates(event, bounds = elements.zone.getBoundingClientRect()) {
   return {
-    x: (event.clientX - bounds.left) / bounds.width * ZONE_WIDTH_CM,
-    y: (event.clientY - bounds.top) / bounds.height * ZONE_DEPTH_CM,
+    x: (event.clientX - bounds.left) / Math.max(1, bounds.width) * ZONE_WIDTH_CM,
+    y: (event.clientY - bounds.top) / Math.max(1, bounds.height) * ZONE_DEPTH_CM,
   };
 }
 
-function boundedBoardCoordinates(event) {
-  return clampDeploymentPosition(boardCoordinates(event), 0);
+function boundedBoardCoordinates(event, bounds) {
+  return clampDeploymentPosition(boardCoordinates(event, bounds), 0);
 }
 
 function renderMarquee(start, end) {
@@ -275,6 +274,57 @@ function announce(piece) {
   elements.status.textContent = `${piece.label} moved to ${Math.round(piece.x)} cm across, ${Math.round(piece.y)} cm deep.`;
 }
 
+function latestPointerSample(event) {
+  const samples = event.getCoalescedEvents?.();
+  return samples?.length ? samples[samples.length - 1] : event;
+}
+
+function pieceDragDelta(activeDrag, event) {
+  const pointer = boardCoordinates(event, activeDrag.bounds);
+  return clampDeploymentDelta(activeDrag.startPieces, {
+    x: pointer.x - activeDrag.start.x,
+    y: pointer.y - activeDrag.start.y,
+  });
+}
+
+function renderPieceDrag(activeDrag) {
+  const delta = activeDrag.pendingDelta ?? { x: 0, y: 0 };
+  const xPixels = delta.x / ZONE_WIDTH_CM * activeDrag.bounds.width;
+  const yPixels = delta.y / ZONE_DEPTH_CM * activeDrag.bounds.height;
+  const translation = `${xPixels}px ${yPixels}px`;
+  for (const piece of activeDrag.pieces) {
+    const marker = markerElementsById.get(piece.id);
+    if (marker) marker.style.translate = translation;
+  }
+}
+
+function scheduleDragFrame(activeDrag) {
+  if (activeDrag.frame) return;
+  activeDrag.frame = window.requestAnimationFrame(() => {
+    activeDrag.frame = 0;
+    if (drag !== activeDrag) return;
+    if (activeDrag.type === "marquee") renderMarquee(activeDrag.start, activeDrag.current);
+    else renderPieceDrag(activeDrag);
+  });
+}
+
+function clearPieceDragVisuals(activeDrag) {
+  for (const piece of activeDrag.pieces) {
+    const marker = markerElementsById.get(piece.id);
+    marker?.classList.remove("is-dragging");
+    marker?.style.removeProperty("translate");
+  }
+}
+
+function commitPieceDrag(activeDrag, delta) {
+  for (const piece of activeDrag.pieces) {
+    const origin = activeDrag.origins.get(piece.id);
+    piece.x = origin.x + delta.x;
+    piece.y = origin.y + delta.y;
+    applyPiecePosition(markerElementsById.get(piece.id), piece);
+  }
+}
+
 elements.zone.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   const marker = event.target.closest(".deployment-piece");
@@ -284,7 +334,8 @@ elements.zone.addEventListener("pointerdown", (event) => {
   if (!piece) {
     if (event.pointerType === "touch") return;
     event.preventDefault();
-    const start = boundedBoardCoordinates(event);
+    const bounds = elements.zone.getBoundingClientRect();
+    const start = boundedBoardCoordinates(event, bounds);
     const initialSelection = additive ? new Set(selectedPieceIds) : new Set();
     if (!additive) clearSelection();
     drag = {
@@ -294,6 +345,8 @@ elements.zone.addEventListener("pointerdown", (event) => {
       start,
       current: start,
       initialSelection,
+      bounds,
+      frame: 0,
     };
     renderMarquee(start, start);
     try {
@@ -318,7 +371,8 @@ elements.zone.addEventListener("pointerdown", (event) => {
     renderSelection();
   }
   const selectedPieces = plan.pieces.filter((candidate) => selectedPieceIds.has(candidate.id));
-  const pointer = boardCoordinates(event);
+  const bounds = elements.zone.getBoundingClientRect();
+  const pointer = boardCoordinates(event, bounds);
   drag = {
     type: "pieces",
     pointerId: event.pointerId,
@@ -327,6 +381,9 @@ elements.zone.addEventListener("pointerdown", (event) => {
     pieces: selectedPieces,
     origins: new Map(selectedPieces.map((candidate) => [candidate.id, { x: candidate.x, y: candidate.y }])),
     startPieces: selectedPieces.map((candidate) => ({ ...candidate })),
+    bounds,
+    pendingDelta: { x: 0, y: 0 },
+    frame: 0,
     moved: false,
   };
   for (const selected of selectedPieces) markerElementsById.get(selected.id)?.classList.add("is-dragging");
@@ -340,44 +397,39 @@ elements.zone.addEventListener("pointerdown", (event) => {
 elements.zone.addEventListener("pointermove", (event) => {
   if (!drag || drag.pointerId !== event.pointerId) return;
   event.preventDefault();
+  const sample = latestPointerSample(event);
   if (drag.type === "marquee") {
-    drag.current = boundedBoardCoordinates(event);
-    renderMarquee(drag.start, drag.current);
+    drag.current = boundedBoardCoordinates(sample, drag.bounds);
+    scheduleDragFrame(drag);
     return;
   }
 
-  const pointer = boardCoordinates(event);
-  const delta = clampDeploymentDelta(drag.startPieces, {
-    x: pointer.x - drag.start.x,
-    y: pointer.y - drag.start.y,
-  });
+  const delta = pieceDragDelta(drag, sample);
+  drag.pendingDelta = delta;
   drag.moved ||= Math.abs(delta.x) > .01 || Math.abs(delta.y) > .01;
-  for (const piece of drag.pieces) {
-    const origin = drag.origins.get(piece.id);
-    piece.x = origin.x + delta.x;
-    piece.y = origin.y + delta.y;
-    applyPiecePosition(markerElementsById.get(piece.id), piece);
-  }
+  scheduleDragFrame(drag);
 });
 
 function endDrag(event, cancelled = false) {
   if (!drag || drag.pointerId !== event.pointerId) return;
-  if (drag.capture.hasPointerCapture?.(event.pointerId)) drag.capture.releasePointerCapture(event.pointerId);
+  const activeDrag = drag;
+  if (activeDrag.frame) window.cancelAnimationFrame(activeDrag.frame);
+  if (activeDrag.capture.hasPointerCapture?.(event.pointerId)) activeDrag.capture.releasePointerCapture(event.pointerId);
 
-  if (drag.type === "marquee") {
+  if (activeDrag.type === "marquee") {
     elements.marquee.hidden = true;
     if (cancelled) {
-      selectedPieceIds = drag.initialSelection;
+      selectedPieceIds = activeDrag.initialSelection;
     } else {
-      drag.current = boundedBoardCoordinates(event);
-      const moved = Math.abs(drag.current.x - drag.start.x) > .25 || Math.abs(drag.current.y - drag.start.y) > .25;
-      selectedPieceIds = new Set(drag.initialSelection);
+      activeDrag.current = boundedBoardCoordinates(latestPointerSample(event), activeDrag.bounds);
+      const moved = Math.abs(activeDrag.current.x - activeDrag.start.x) > .25 || Math.abs(activeDrag.current.y - activeDrag.start.y) > .25;
+      selectedPieceIds = new Set(activeDrag.initialSelection);
       if (moved) {
         for (const piece of deploymentPiecesInRect(plan.pieces, {
-          x1: drag.start.x,
-          y1: drag.start.y,
-          x2: drag.current.x,
-          y2: drag.current.y,
+          x1: activeDrag.start.x,
+          y1: activeDrag.start.y,
+          x2: activeDrag.current.x,
+          y2: activeDrag.current.y,
         })) selectedPieceIds.add(piece.id);
       }
     }
@@ -387,11 +439,14 @@ function endDrag(event, cancelled = false) {
     return;
   }
 
-  for (const piece of drag.pieces) markerElementsById.get(piece.id)?.classList.remove("is-dragging");
-  if (drag.pieces.length > 1) elements.status.textContent = `Moved ${drag.pieces.length} selected markers.`;
-  else announce(drag.pieces[0]);
+  const finalDelta = cancelled ? { x: 0, y: 0 } : pieceDragDelta(activeDrag, latestPointerSample(event));
+  if (!cancelled) commitPieceDrag(activeDrag, finalDelta);
+  clearPieceDragVisuals(activeDrag);
+  if (cancelled) elements.status.textContent = "Move cancelled.";
+  else if (activeDrag.pieces.length > 1) elements.status.textContent = `Moved ${activeDrag.pieces.length} selected markers.`;
+  else announce(activeDrag.pieces[0]);
   drag = null;
-  persistDeployment();
+  if (!cancelled) persistDeployment();
 }
 
 elements.zone.addEventListener("pointerup", endDrag);

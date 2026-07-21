@@ -187,7 +187,7 @@ export const RELICS = Object.freeze([
   },
   {
     name: "Mystical Tome of Revelation",
-    description: "A Mage-lord or Magic-user gains one additional spell choice.",
+    description: "A Mage-lord or Magic-user gains one additional spell level.",
     points: 12,
   },
   {
