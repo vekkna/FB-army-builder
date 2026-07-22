@@ -14,7 +14,7 @@ $token = [System.Threading.CancellationToken]::None
 
 try {
   $expression = @'
-(() => {
+(async () => {
   const click = (selector) => {
     const element = document.querySelector(selector);
     if (!element) throw new Error(`Missing element: ${selector}`);
@@ -101,6 +101,60 @@ try {
   } finally {
     HTMLAnchorElement.prototype.click = originalAnchorClick;
   }
+
+  click('#library-button');
+  const libraryWarning = document.querySelector('.library-warning').textContent;
+  const libraryBounds = document.querySelector('#library-dialog').getBoundingClientRect();
+  const libraryMobileLayout = innerWidth > 620 || (
+    Math.abs(libraryBounds.width - document.documentElement.clientWidth) < 1
+    && Math.abs(libraryBounds.bottom - innerHeight) < 1
+    && libraryBounds.top > 0
+  );
+  input('#library-save-name', 'Smoke Army', 'input');
+  click('#library-save-button');
+  const savedEntry = globalThis.__FB_MUSTER__.getLibrary()[0];
+  document.querySelector(`[data-library-id="${savedEntry.id}"] [data-library-action="duplicate"]`).click();
+  const duplicateEntry = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id !== savedEntry.id);
+  document.querySelector(`[data-library-id="${duplicateEntry.id}"] [data-library-action="rename"]`).click();
+  const renameForm = document.querySelector(`[data-library-id="${duplicateEntry.id}"] [data-library-rename-form]`);
+  input(`[data-library-id="${duplicateEntry.id}"] [data-library-rename-input]`, 'Tournament Variant', 'input');
+  renameForm.requestSubmit();
+  click('#library-dialog-close');
+
+  const savedLimitBeforeWorkspaceEdit = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id === savedEntry.id).army.pointsLimit;
+  input('#points-limit', '1200', 'change');
+  const savedLimitAfterWorkspaceEdit = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id === savedEntry.id).army.pointsLimit;
+  click('#library-button');
+  const unsavedLibraryStatus = document.querySelector('#library-save-status').textContent;
+  click('#library-save-button');
+  const savedLimitAfterExplicitSave = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id === savedEntry.id).army.pointsLimit;
+  let downloadedLibraryFile = '';
+  HTMLAnchorElement.prototype.click = function () { downloadedLibraryFile = this.download; };
+  try {
+    click('#library-export-all-button');
+  } finally {
+    HTMLAnchorElement.prototype.click = originalAnchorClick;
+  }
+  const libraryNames = globalThis.__FB_MUSTER__.getLibrary().map((entry) => entry.name);
+  const libraryModifiedTimesPresent = Array.from(document.querySelectorAll('.library-entry time')).every((time) => time.dateTime && time.textContent.includes('Modified'));
+  const libraryActionHeights = Array.from(document.querySelectorAll('.library-entry-actions button'))
+    .map((button) => button.getBoundingClientRect().height);
+  const libraryTouchTargets = innerWidth > 620 || libraryActionHeights.every((height) => height >= 40);
+  const backupFile = new File([JSON.stringify({
+    format: 'fantastic-battles-muster-library',
+    version: 1,
+    armies: globalThis.__FB_MUSTER__.getLibrary(),
+  })], 'army-library.json', { type: 'application/json' });
+  const transfer = new DataTransfer();
+  transfer.items.add(backupFile);
+  const importInput = document.querySelector('#import-file');
+  importInput.files = transfer.files;
+  importInput.dispatchEvent(new Event('change', { bubbles: true }));
+  for (let attempt = 0; attempt < 20 && globalThis.__FB_MUSTER__.getLibrary().length < 4; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  const restoredLibraryCount = globalThis.__FB_MUSTER__.getLibrary().length;
+  click('#library-dialog-close');
   return {
     units: globalThis.__FB_MUSTER__.getState().units.length,
     total: army.total,
@@ -133,6 +187,8 @@ try {
     rulesBetweenCardsAndDeploy: document.querySelector('#unit-cards-button').nextElementSibling?.id === 'rules-button' && document.querySelector('#rules-button').nextElementSibling?.id === 'deployment-button',
     spells: globalThis.__FB_MUSTER__.getState().units.flatMap((unit) => unit.spells || []),
     spellChips: Array.from(document.querySelectorAll('.upgrade-chip.is-spell')).map((chip) => chip.textContent.trim()),
+    hasBlessLevelThreeChip: Array.from(document.querySelectorAll('.upgrade-chip.is-spell')).some((chip) => chip.textContent.includes('Bless L3')),
+    hasBlessLevelOneChip: Array.from(document.querySelectorAll('.upgrade-chip.is-spell')).some((chip) => chip.textContent.includes('Bless L1')),
     blinkTooltip: document.querySelector('[data-spell-name="Blink"]')?.title || '',
     tomeTooltip: document.querySelector('#unit-relic option[value="Mystical Tome of Revelation"]')?.title || '',
     tomeSpellCapacity,
@@ -141,6 +197,20 @@ try {
     dragReordered: orderBeforeDrag[0] === orderAfterDrag[1] && orderBeforeDrag[1] === orderAfterDrag[0],
     dragHandles: document.querySelectorAll('[data-drag-handle]').length,
     directionButtons: document.querySelectorAll('[data-action="up"], [data-action="down"]').length,
+    libraryWarning,
+    libraryNames,
+    libraryModifiedTimesPresent,
+    downloadedLibraryFile,
+    savedLimitBeforeWorkspaceEdit,
+    savedLimitAfterWorkspaceEdit,
+    savedLimitAfterExplicitSave,
+    unsavedLibraryStatus,
+    libraryMobileLayout,
+    libraryTouchTargets,
+    libraryViewport: { width: innerWidth, layoutWidth: document.documentElement.clientWidth, height: innerHeight },
+    libraryBounds: { left: libraryBounds.left, top: libraryBounds.top, bottom: libraryBounds.bottom, width: libraryBounds.width, height: libraryBounds.height },
+    libraryActionHeights,
+    restoredLibraryCount,
   };
 })()
 '@
@@ -185,18 +255,24 @@ try {
   if (-not $result.rulesDisabledWhenEmpty -or -not $result.rulesButtonEnabled) { throw "Expected Rules to be disabled with no selected rules and enabled after building the army." }
   if ($result.cardCount -ne 2 -or $result.cardPdfType -ne "application/pdf" -or $result.cardPdfSize -lt 1000) { throw "Expected two generated cards in a non-empty PDF." }
   if ($result.downloadedCardFile -ne "fantastic-battles-army-unit-cards.pdf") { throw "Expected the Cards action to download the army-named PDF." }
-  if ($result.rulesCount -ne 5 -or $result.rulesPdfType -ne "application/pdf" -or $result.rulesPdfSize -lt 1000) { throw "Expected five unique selected rules in a non-empty PDF." }
+  if ($result.rulesCount -ne 4 -or $result.rulesPdfType -ne "application/pdf" -or $result.rulesPdfSize -lt 1000) { throw "Expected four unique selected rules in a non-empty PDF." }
   if ($result.downloadedRulesFile -ne "fantastic-battles-army-rules-reference.pdf") { throw "Expected the Rules action to download the army-named PDF." }
   if ($result.strategyTooltip -like "*Add Agent*" -or $result.strategyTooltip -notlike "*Sowing discord*") { throw "Expected strategy tooltips to contain descriptions without add prompts." }
   if (-not $result.headerTooltipsPresent -or -not $result.rulesBetweenCardsAndDeploy) { throw "Expected descriptive header tooltips and Rules between Cards and Deploy." }
   if ($result.actionTooltips.cards -ne "Print and cut out unit cards for the battlefield." -or $result.actionTooltips.rules -ne "Print the rules your army uses." -or $result.actionTooltips.deploy -ne "Plan your army's deployment.") { throw "Expected the requested Cards, Rules, and Deploy tooltips." }
   if ($result.spells.Count -ne 2 -or $result.spells[0].name -ne "Bless" -or $result.spells[0].level -ne 3 -or $result.spells[1].name -ne "Bless" -or $result.spells[1].level -ne 1) { throw "Expected Bless at levels 3 and 1 on the Tome-bearing Mage-lord." }
-  if (($result.spellChips | Where-Object { $_ -like "*Bless L3" }).Count -ne 1 -or ($result.spellChips | Where-Object { $_ -like "*Bless L1" }).Count -ne 1) { throw "Expected both Bless selections in the roster." }
+  if (-not $result.hasBlessLevelThreeChip -or -not $result.hasBlessLevelOneChip) { throw "Expected both Bless selections in the roster." }
   if ($result.tomeSpellCapacity -ne "4 / 4 levels" -or $result.tomeTooltip -notlike "*additional spell level*") { throw "Expected Mystical Tome to visibly grant a fourth spell level." }
   if (-not $result.levelThreeIncreaseDisabled) { throw "Expected individual spells to remain capped at level 3 with the Tome." }
   if ($result.blinkTooltip -notlike "*Roll needed: 5+ (errata)*") { throw "Expected the Blink errata in its tooltip." }
   if ($result.cardSpellNames -notcontains "Bless L3" -or $result.cardSpellNames -notcontains "Bless L1") { throw "Expected both Bless selections in unit-card data." }
   if (-not $result.dragReordered -or $result.dragHandles -ne 2 -or $result.directionButtons -ne 0) { throw "Expected drag handles to reorder units without Up/Down buttons." }
+  if ($result.libraryWarning -notlike "*Browser storage is not a backup*" -or $result.libraryWarning -notlike "*Export a JSON backup*") { throw "Expected a clear browser-storage loss warning in the army library." }
+  if ($result.libraryNames.Count -ne 2 -or $result.libraryNames -notcontains "Smoke Army" -or $result.libraryNames -notcontains "Tournament Variant") { throw "Expected saved, duplicated, and renamed library armies." }
+  if (-not $result.libraryModifiedTimesPresent -or $result.downloadedLibraryFile -ne "fantastic-battles-army-library.json") { throw "Expected last-modified dates and an export-all JSON backup." }
+  if ($result.savedLimitBeforeWorkspaceEdit -ne 1000 -or $result.savedLimitAfterWorkspaceEdit -ne 1000 -or $result.savedLimitAfterExplicitSave -ne 1200 -or $result.unsavedLibraryStatus -notlike "*Unsaved changes*") { throw "Expected library snapshots to change only after an explicit save." }
+  if (-not $result.libraryMobileLayout -or -not $result.libraryTouchTargets) { throw "Expected a bottom-anchored library with touch-friendly controls on mobile (viewport $($result.libraryViewport.width)x$($result.libraryViewport.height); dialog $($result.libraryBounds.left),$($result.libraryBounds.top),$($result.libraryBounds.width)x$($result.libraryBounds.height); action heights $($result.libraryActionHeights -join ','))." }
+  if ($result.restoredLibraryCount -ne 4) { throw "Expected an exported whole-library JSON backup to import its armies again." }
 
   $result | ConvertTo-Json -Compress
 }

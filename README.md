@@ -24,7 +24,9 @@ Then open <http://localhost:8000>. No install or build step is required.
 - Army-specific rules-reference PDFs containing the selected spells, traits, and strategies
 - One-click, print-ready unit-card PDFs (68 × 47.9 mm cards, four across on landscape A4)
 - A draggable 156 × 36 cm deployment planner with scale-correct bases and low-ink printing
-- Automatic local saving plus JSON save/load and a print layout
+- Automatic working-copy recovery, a named browser army library, JSON backup/restore, and a print layout
+
+Named library armies are stored in this browser and change only when **Save changes** is selected. Clearing site data, using private browsing, or resetting the browser profile can erase browser storage, so the library includes per-army export and a restorable **Export all** JSON backup.
 
 ## Deliberate repairs to legacy spreadsheet edge cases
 

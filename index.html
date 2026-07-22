@@ -21,11 +21,14 @@
     </div>
 
     <div class="header-actions" aria-label="Army actions">
-      <button class="icon-button" id="export-button" type="button" title="Download this army as a reusable JSON file">
-        <span aria-hidden="true">↓</span><span class="button-label">Save</span>
+      <button class="icon-button" id="export-button" type="button" title="Export this army as a reusable JSON file">
+        <span aria-hidden="true">↓</span><span class="button-label">Export</span>
       </button>
-      <button class="icon-button" id="import-button" type="button" title="Load an army from a saved JSON file">
-        <span aria-hidden="true">↑</span><span class="button-label">Load</span>
+      <button class="icon-button" id="import-button" type="button" title="Import an army or library backup from JSON">
+        <span aria-hidden="true">↑</span><span class="button-label">Import</span>
+      </button>
+      <button class="icon-button" id="library-button" type="button" title="Open your armies saved in this browser">
+        <span aria-hidden="true">☷</span><span class="button-label">Armies</span>
       </button>
       <button class="icon-button" id="print-button" type="button" title="Print the current army roster">
         <span aria-hidden="true">▣</span><span class="button-label">Roster</span>
@@ -302,6 +305,50 @@
         <span>Added at level 1</span>
       </div>
       <div class="trait-results spell-results" id="spell-results"></div>
+    </div>
+  </dialog>
+
+  <dialog class="library-dialog" id="library-dialog" aria-labelledby="library-dialog-title">
+    <div class="library-shell">
+      <header class="dialog-header library-header">
+        <div>
+          <p class="step-label">Saved on this device</p>
+          <h2 id="library-dialog-title">Army library</h2>
+        </div>
+        <button class="dialog-close" id="library-dialog-close" type="button" aria-label="Close army library">×</button>
+      </header>
+
+      <div class="library-warning" role="note">
+        <span aria-hidden="true">!</span>
+        <p><strong>Browser storage is not a backup.</strong> Clearing this site's data, using private browsing, or resetting your browser profile can erase these armies. Export a JSON backup and keep it somewhere safe.</p>
+      </div>
+
+      <section class="library-save-panel" aria-labelledby="library-save-title">
+        <div>
+          <h3 id="library-save-title">Save the current army</h3>
+          <p id="library-save-status">Add the army you are currently editing to this browser.</p>
+        </div>
+        <div class="library-save-controls">
+          <label>
+            <span>Library name</span>
+            <input id="library-save-name" type="text" maxlength="80" autocomplete="off" placeholder="e.g. Northern Host">
+          </label>
+          <div class="library-save-actions">
+            <button class="secondary-button" id="library-save-copy-button" type="button" hidden>Save as new</button>
+            <button class="primary-button library-primary-button" id="library-save-button" type="button">Add to library</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="library-toolbar">
+        <strong id="library-count">0 saved armies</strong>
+        <div>
+          <button class="secondary-button" id="library-import-button" type="button">Import JSON</button>
+          <button class="secondary-button" id="library-export-all-button" type="button" disabled>Export all</button>
+        </div>
+      </div>
+
+      <div class="library-list" id="library-list"></div>
     </div>
   </dialog>
 

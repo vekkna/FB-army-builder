@@ -44,9 +44,14 @@ import {
 } from "./rules-pdf.js";
 
 const STORAGE_KEY = "fantastic-battles-muster:v1";
+const LIBRARY_STORAGE_KEY = "fantastic-battles-muster:library:v1";
+const ACTIVE_LIBRARY_KEY = "fantastic-battles-muster:active-library:v1";
+const LIBRARY_FORMAT = "fantastic-battles-muster-library";
+const MAX_LIBRARY_ARMIES = 100;
 const $ = (selector) => document.querySelector(selector);
 const byId = (id) => document.getElementById(id);
 const integer = new Intl.NumberFormat("en-IE", { maximumFractionDigits: 0 });
+const dateTime = new Intl.DateTimeFormat("en-IE", { dateStyle: "medium", timeStyle: "short" });
 
 const elements = {
   armyName: byId("army-name"),
@@ -113,6 +118,14 @@ const elements = {
   importFile: byId("import-file"),
   unitCardsButton: byId("unit-cards-button"),
   rulesButton: byId("rules-button"),
+  libraryDialog: byId("library-dialog"),
+  librarySaveName: byId("library-save-name"),
+  librarySaveStatus: byId("library-save-status"),
+  librarySaveButton: byId("library-save-button"),
+  librarySaveCopyButton: byId("library-save-copy-button"),
+  libraryCount: byId("library-count"),
+  libraryList: byId("library-list"),
+  libraryExportAllButton: byId("library-export-all-button"),
 };
 
 function makeId() {
@@ -229,10 +242,61 @@ function loadState() {
   }
 }
 
+function validLibraryDate(raw, fallback) {
+  const date = new Date(raw);
+  return Number.isNaN(date.valueOf()) ? fallback : date.toISOString();
+}
+
+function sanitiseLibraryEntry(raw, usedIds = new Set()) {
+  if (!raw || typeof raw !== "object") return null;
+  const army = sanitiseState(raw.army ?? raw);
+  const fallbackName = army.armyName.trim() || "Untitled army";
+  const name = String(raw.name || fallbackName).trim().slice(0, 80) || fallbackName;
+  let id = typeof raw.id === "string" && raw.id ? raw.id : makeId();
+  if (usedIds.has(id)) id = makeId();
+  usedIds.add(id);
+  const now = new Date().toISOString();
+  army.armyName = name;
+  return {
+    id,
+    name,
+    createdAt: validLibraryDate(raw.createdAt, now),
+    updatedAt: validLibraryDate(raw.updatedAt, now),
+    army,
+    deployment: sanitiseDeploymentData(raw.deployment),
+  };
+}
+
+function loadLibrary() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LIBRARY_STORAGE_KEY) || "[]");
+    const entries = Array.isArray(raw) ? raw : raw?.armies;
+    const usedIds = new Set();
+    return (Array.isArray(entries) ? entries : [])
+      .slice(0, MAX_LIBRARY_ARMIES)
+      .map((entry) => sanitiseLibraryEntry(entry, usedIds))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function loadActiveLibraryId(entries) {
+  try {
+    const id = localStorage.getItem(ACTIVE_LIBRARY_KEY) || "";
+    return entries.some((entry) => entry.id === id) ? id : "";
+  } catch {
+    return "";
+  }
+}
+
 let state = loadState();
+let library = loadLibrary();
+let activeLibraryId = loadActiveLibraryId(library);
 let draft = emptyDraft();
 let editingId = "";
 let traitTarget = null;
+let renamingLibraryId = "";
 let toastTimer = null;
 let unitDrag = { sourceId: "", targetId: "", position: "before" };
 let pointerDrag = null;
@@ -251,6 +315,16 @@ function persist() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     // The app remains usable when storage is blocked.
+  }
+}
+
+function persistLibrary() {
+  try {
+    localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(library));
+    if (activeLibraryId) localStorage.setItem(ACTIVE_LIBRARY_KEY, activeLibraryId);
+    else localStorage.removeItem(ACTIVE_LIBRARY_KEY);
+  } catch {
+    // The current army remains usable if browser storage is full or unavailable.
   }
 }
 
@@ -864,23 +938,279 @@ function changeSpell(index, action) {
   renderDraft();
 }
 
-function downloadArmy() {
-  const payload = {
+function slugify(value, fallback = "fantastic-battles-army") {
+  const slug = String(value || fallback).toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return slug || fallback;
+}
+
+function armyExportPayload(army, deployment) {
+  return {
     format: "fantastic-battles-muster",
     version: 1,
     exportedAt: new Date().toISOString(),
-    army: state,
-    deployment: storedDeployment(),
+    army,
+    deployment,
   };
+}
+
+function downloadJSON(payload, filename) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  const slug = (state.armyName || "fantastic-battles-army").toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   anchor.href = url;
-  anchor.download = `${slug || "fantastic-battles-army"}.json`;
+  anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
-  showToast("Army saved to a file.");
+}
+
+function uniqueLibraryName(baseName, additionalNames = []) {
+  const base = String(baseName || "Untitled army").trim().slice(0, 80) || "Untitled army";
+  const names = new Set([
+    ...library.map(({ name }) => name.toLocaleLowerCase()),
+    ...additionalNames.map((name) => name.toLocaleLowerCase()),
+  ]);
+  if (!names.has(base.toLocaleLowerCase())) return base;
+  let copy = 2;
+  while (names.has(`${base} ${copy}`.toLocaleLowerCase())) copy += 1;
+  return `${base} ${copy}`.slice(0, 80);
+}
+
+function libraryEntryMarkup(entry) {
+  const army = calculateArmy(entry.army);
+  const active = entry.id === activeLibraryId;
+  const dirty = active && libraryEntryIsDirty(entry);
+  const modified = dateTime.format(new Date(entry.updatedAt));
+  if (entry.id === renamingLibraryId) {
+    return `<article class="library-entry is-renaming" data-library-id="${escapeHTML(entry.id)}">
+      <form class="library-rename-form" data-library-rename-form>
+        <label><span>Army name</span><input type="text" maxlength="80" value="${escapeHTML(entry.name)}" data-library-rename-input></label>
+        <div>
+          <button class="secondary-button" type="button" data-library-action="cancel-rename">Cancel</button>
+          <button class="primary-button library-primary-button" type="submit">Save name</button>
+        </div>
+      </form>
+    </article>`;
+  }
+  return `<article class="library-entry${active ? " is-active" : ""}" data-library-id="${escapeHTML(entry.id)}">
+    <div class="library-entry-copy">
+      <div class="library-entry-title"><h3>${escapeHTML(entry.name)}</h3>${active ? `<span class="${dirty ? "has-unsaved-changes" : ""}">${dirty ? "Unsaved changes" : "Open now"}</span>` : ""}</div>
+      <p>${plural(entry.army.units.length, "unit")} · ${integer.format(army.total)} pts</p>
+      <time datetime="${escapeHTML(entry.updatedAt)}">Modified ${escapeHTML(modified)}</time>
+    </div>
+    <div class="library-entry-actions">
+      <button class="library-open-button" type="button" data-library-action="open" ${active ? "disabled" : ""}>${active ? "Open" : "Open army"}</button>
+      <button type="button" data-library-action="export">Export</button>
+      <button type="button" data-library-action="duplicate">Duplicate</button>
+      <button type="button" data-library-action="rename">Rename</button>
+      <button class="delete" type="button" data-library-action="delete">Delete</button>
+    </div>
+  </article>`;
+}
+
+function libraryEntryIsDirty(entry) {
+  if (!entry || entry.id !== activeLibraryId) return false;
+  return JSON.stringify(entry.army) !== JSON.stringify(sanitiseState(state))
+    || JSON.stringify(entry.deployment) !== JSON.stringify(storedDeployment());
+}
+
+function renderLibrary() {
+  const activeEntry = library.find(({ id }) => id === activeLibraryId);
+  const dirty = libraryEntryIsDirty(activeEntry);
+  elements.librarySaveName.value = state.armyName.trim() || activeEntry?.name || "";
+  elements.librarySaveButton.textContent = activeEntry ? "Save changes" : "Add to library";
+  elements.librarySaveCopyButton.hidden = !activeEntry;
+  elements.librarySaveStatus.textContent = activeEntry
+    ? (dirty
+      ? "Unsaved changes in the working copy. The library version has not been overwritten."
+      : "The working copy matches the saved library version.")
+    : "Add the army you are currently editing to this browser.";
+  elements.librarySaveStatus.classList.toggle("has-unsaved-changes", Boolean(activeEntry && dirty));
+  elements.libraryCount.textContent = plural(library.length, "saved army", "saved armies");
+  elements.libraryExportAllButton.disabled = library.length === 0;
+  const entries = [...library].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  elements.libraryList.innerHTML = entries.length
+    ? entries.map(libraryEntryMarkup).join("")
+    : `<div class="library-empty"><span aria-hidden="true">☷</span><h3>No saved armies yet</h3><p>Name the current army above and add it to your library.</p></div>`;
+}
+
+function openLibrary() {
+  renamingLibraryId = "";
+  renderLibrary();
+  elements.libraryDialog.showModal();
+  requestAnimationFrame(() => elements.librarySaveName.focus());
+}
+
+function saveCurrentToLibrary(asCopy = false) {
+  const requestedName = elements.librarySaveName.value.trim().slice(0, 80);
+  const currentEntry = asCopy ? null : library.find(({ id }) => id === activeLibraryId);
+  const name = requestedName || state.armyName.trim();
+  if (!name) {
+    showToast("Give this army a library name first.");
+    elements.librarySaveName.focus();
+    return;
+  }
+  const now = new Date().toISOString();
+  state.armyName = name;
+  if (currentEntry) {
+    currentEntry.name = name;
+    currentEntry.army = sanitiseState(state);
+    currentEntry.deployment = storedDeployment();
+    currentEntry.updatedAt = now;
+    showToast(`${name} updated in the library.`);
+  } else {
+    if (library.length >= MAX_LIBRARY_ARMIES) {
+      showToast(`The library supports up to ${MAX_LIBRARY_ARMIES} armies.`);
+      return;
+    }
+    const savedName = uniqueLibraryName(name);
+    const entry = {
+      id: makeId(),
+      name: savedName,
+      createdAt: now,
+      updatedAt: now,
+      army: sanitiseState({ ...state, armyName: savedName }),
+      deployment: storedDeployment(),
+    };
+    entry.army.armyName = entry.name;
+    state.armyName = entry.name;
+    library.push(entry);
+    activeLibraryId = entry.id;
+    showToast(`${entry.name} added to the library.`);
+  }
+  persistLibrary();
+  renderAll();
+  renderLibrary();
+}
+
+function openLibraryEntry(entry) {
+  const activeEntry = library.find(({ id }) => id === activeLibraryId);
+  if (activeEntry && activeEntry.id !== entry.id && libraryEntryIsDirty(activeEntry)
+    && !window.confirm(`The working copy of ${activeEntry.name} has unsaved changes. Open ${entry.name} without saving them to the library?`)) return;
+  const hasUnsavedWorkingArmy = !activeLibraryId && (
+    state.units.length || state.strategies.length || state.armyName.trim() || state.pointsLimit !== defaultState().pointsLimit
+  );
+  if (hasUnsavedWorkingArmy && !window.confirm("This current army is not saved in the library. Open the selected army anyway?")) return;
+  state = sanitiseState(entry.army);
+  state.armyName = entry.name;
+  activeLibraryId = entry.id;
+  replaceStoredDeployment(entry.deployment);
+  persistLibrary();
+  resetDraft();
+  renderAll();
+  elements.libraryDialog.close();
+  showToast(`${entry.name} opened.`);
+}
+
+function exportLibraryEntry(entry) {
+  downloadJSON(
+    armyExportPayload(entry.army, entry.deployment),
+    `${slugify(entry.name)}.json`,
+  );
+  showToast(`${entry.name} exported.`);
+}
+
+function duplicateLibraryEntry(entry) {
+  if (library.length >= MAX_LIBRARY_ARMIES) {
+    showToast(`The library supports up to ${MAX_LIBRARY_ARMIES} armies.`);
+    return;
+  }
+  const now = new Date().toISOString();
+  const name = uniqueLibraryName(`${entry.name} copy`);
+  const duplicate = {
+    ...structuredClone(entry),
+    id: makeId(),
+    name,
+    createdAt: now,
+    updatedAt: now,
+  };
+  duplicate.army.armyName = name;
+  library.push(duplicate);
+  persistLibrary();
+  renderLibrary();
+  showToast(`${name} created.`);
+}
+
+function renameLibraryEntry(entry, name) {
+  const trimmed = String(name || "").trim().slice(0, 80);
+  if (!trimmed) return false;
+  entry.name = trimmed;
+  entry.army.armyName = trimmed;
+  entry.updatedAt = new Date().toISOString();
+  if (entry.id === activeLibraryId) {
+    state.armyName = trimmed;
+    renderAll();
+  }
+  renamingLibraryId = "";
+  persistLibrary();
+  renderLibrary();
+  showToast(`Army renamed to ${trimmed}.`);
+  return true;
+}
+
+function deleteLibraryEntry(entry) {
+  if (!window.confirm(`Delete ${entry.name} from this browser? Export it first if you may need it again.`)) return;
+  library = library.filter(({ id }) => id !== entry.id);
+  if (activeLibraryId === entry.id) activeLibraryId = "";
+  renamingLibraryId = "";
+  persistLibrary();
+  renderLibrary();
+  showToast(`${entry.name} deleted from the library.`);
+}
+
+function libraryAction(id, action) {
+  const entry = library.find((item) => item.id === id);
+  if (!entry) return;
+  if (action === "open") openLibraryEntry(entry);
+  else if (action === "export") exportLibraryEntry(entry);
+  else if (action === "duplicate") duplicateLibraryEntry(entry);
+  else if (action === "rename") {
+    renamingLibraryId = entry.id;
+    renderLibrary();
+    requestAnimationFrame(() => elements.libraryList.querySelector("[data-library-rename-input]")?.select());
+  } else if (action === "cancel-rename") {
+    renamingLibraryId = "";
+    renderLibrary();
+  } else if (action === "delete") deleteLibraryEntry(entry);
+}
+
+function exportArmyLibrary() {
+  if (!library.length) return;
+  const payload = {
+    format: LIBRARY_FORMAT,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    armies: library.map((entry) => structuredClone(entry)),
+  };
+  downloadJSON(payload, "fantastic-battles-army-library.json");
+  showToast(`${plural(library.length, "army", "armies")} exported in one backup.`);
+}
+
+function importArmyLibrary(parsed) {
+  if (!Array.isArray(parsed?.armies)) throw new Error("Not a library backup");
+  const available = Math.max(0, MAX_LIBRARY_ARMIES - library.length);
+  const usedIds = new Set(library.map(({ id }) => id));
+  const imported = [];
+  for (const raw of parsed.armies.slice(0, available)) {
+    const entry = sanitiseLibraryEntry({ ...raw, id: makeId() }, usedIds);
+    if (entry) {
+      entry.name = uniqueLibraryName(entry.name, imported.map(({ name }) => name));
+      entry.army.armyName = entry.name;
+      imported.push(entry);
+    }
+  }
+  if (!imported.length) throw new Error("No armies to import");
+  library.push(...imported);
+  persistLibrary();
+  renderLibrary();
+  showToast(`${plural(imported.length, "army", "armies")} added to the library.`);
+}
+
+function downloadArmy() {
+  downloadJSON(
+    armyExportPayload(state, storedDeployment()),
+    `${slugify(state.armyName)}.json`,
+  );
+  showToast("Army exported to a file.");
 }
 
 function downloadUnitCards() {
@@ -937,12 +1267,19 @@ function downloadRulesReference() {
 async function importArmy(file) {
   try {
     const parsed = JSON.parse(await file.text());
+    if (parsed?.format === LIBRARY_FORMAT) {
+      importArmyLibrary(parsed);
+      return;
+    }
     const raw = parsed?.format === "fantastic-battles-muster" ? parsed.army : parsed;
     if (!raw || typeof raw !== "object" || !Array.isArray(raw.units)) throw new Error("Not an army file");
     state = sanitiseState(raw);
+    activeLibraryId = "";
     replaceStoredDeployment(parsed?.format === "fantastic-battles-muster" ? parsed.deployment : raw.deployment);
+    persistLibrary();
     resetDraft();
     renderAll();
+    if (elements.libraryDialog.open) elements.libraryDialog.close();
     showToast(`Loaded ${plural(state.units.length, "unit")}.`);
   } catch {
     showToast("That army file could not be loaded.");
@@ -1094,9 +1431,38 @@ elements.spellDialog.addEventListener("click", (event) => {
 
 byId("export-button").addEventListener("click", downloadArmy);
 byId("import-button").addEventListener("click", () => elements.importFile.click());
+byId("library-button").addEventListener("click", openLibrary);
 elements.importFile.addEventListener("change", () => {
   const [file] = elements.importFile.files;
   if (file) importArmy(file);
+});
+byId("library-dialog-close").addEventListener("click", () => elements.libraryDialog.close());
+elements.libraryDialog.addEventListener("click", (event) => {
+  if (event.target === elements.libraryDialog) elements.libraryDialog.close();
+});
+elements.librarySaveButton.addEventListener("click", () => saveCurrentToLibrary(false));
+elements.librarySaveCopyButton.addEventListener("click", () => saveCurrentToLibrary(true));
+elements.librarySaveName.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    saveCurrentToLibrary();
+  }
+});
+byId("library-import-button").addEventListener("click", () => elements.importFile.click());
+elements.libraryExportAllButton.addEventListener("click", exportArmyLibrary);
+elements.libraryList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-library-action]");
+  const entry = event.target.closest("[data-library-id]");
+  if (button && entry) libraryAction(entry.dataset.libraryId, button.dataset.libraryAction);
+});
+elements.libraryList.addEventListener("submit", (event) => {
+  const form = event.target.closest("[data-library-rename-form]");
+  const entryElement = event.target.closest("[data-library-id]");
+  if (!form || !entryElement) return;
+  event.preventDefault();
+  const entry = library.find(({ id }) => id === entryElement.dataset.libraryId);
+  const input = form.querySelector("[data-library-rename-input]");
+  if (entry && !renameLibraryEntry(entry, input?.value)) input?.focus();
 });
 byId("print-button").addEventListener("click", () => window.print());
 elements.unitCardsButton.addEventListener("click", downloadUnitCards);
@@ -1108,6 +1474,8 @@ byId("new-button").addEventListener("click", () => {
     || state.pointsLimit !== defaultState().pointsLimit;
   if (hasWork && !window.confirm("Have you saved your current army? Starting a new army will clear it from this device.")) return;
   state = defaultState();
+  activeLibraryId = "";
+  persistLibrary();
   replaceStoredDeployment();
   resetDraft();
   renderAll();
@@ -1123,6 +1491,8 @@ renderAll();
 globalThis.__FB_MUSTER__ = Object.freeze({
   getState: () => structuredClone(state),
   getDraft: () => structuredClone(draft),
+  getLibrary: () => structuredClone(library),
+  getActiveLibraryId: () => activeLibraryId,
   calculateArmy: () => calculateArmy(state),
   buildUnitCardData: () => buildUnitCardData(state.units),
   createUnitCardsPdf: () => createUnitCardsPdf(buildUnitCardData(state.units)),
