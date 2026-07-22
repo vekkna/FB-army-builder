@@ -158,7 +158,7 @@ function normaliseSpells(rawSpells, allowance) {
   const accepted = [];
   let levelsUsed = 0;
   for (const rawSpell of Array.isArray(rawSpells) ? rawSpells : []) {
-    if (!SPELL_BY_NAME.has(rawSpell?.name) || accepted.some(({ name }) => name === rawSpell.name)) continue;
+    if (!SPELL_BY_NAME.has(rawSpell?.name)) continue;
     const requestedLevel = Math.min(3, Math.max(1, Math.round(Number(rawSpell.level) || 1)));
     const level = Math.min(requestedLevel, allowance - levelsUsed);
     if (level < 1) break;
@@ -392,7 +392,7 @@ function renderSpellControls() {
       <button class="spell-remove-button" type="button" data-spell-action="remove" data-spell-index="${index}" aria-label="Remove ${escapeHTML(selection.name)}">×</button>
     </div>`;
   }).join("");
-  const full = levelsUsed >= allowance || draft.spells.length >= SPELLS.length;
+  const full = levelsUsed >= allowance;
   elements.addSpellButton.disabled = full;
   elements.addSpellButton.title = full ? "Reduce or remove a spell before choosing another" : "Choose another spell at level 1";
 }
@@ -823,17 +823,15 @@ function renderSpellResults() {
   const allowance = spellLevelAllowance(draft);
   let availableCount = 0;
   elements.spellResults.innerHTML = SPELLS.map((spell) => {
-    const selected = draft.spells.some(({ name }) => name === spell.name);
-    const available = !selected && levelsUsed < allowance;
+    const available = levelsUsed < allowance;
     if (available) availableCount += 1;
-    const reason = selected ? "Already selected" : "No spell levels remaining";
     return `<button class="trait-result spell-result" type="button" data-spell-name="${escapeHTML(spell.name)}"
       title="${escapeHTML(spellTooltip(spell))}" ${available ? "" : "disabled"}>
       <span class="trait-result-name">${escapeHTML(spell.name)}</span>
       <span class="trait-result-detail">Roll needed: ${escapeHTML(spell.difficulty)}${spell.errata ? " · errata" : ""}</span>
       ${available
         ? `<span class="trait-result-points">Add at level 1</span>`
-        : `<span class="trait-result-reason">${escapeHTML(reason)}</span>`}
+        : `<span class="trait-result-reason">No spell levels remaining</span>`}
     </button>`;
   }).join("");
   elements.spellResultsCount.textContent = `${availableCount} available · ${levelsUsed} / ${allowance} levels used`;
@@ -846,7 +844,7 @@ function openSpellPicker() {
 }
 
 function addSpell(name) {
-  if (!SPELL_BY_NAME.has(name) || draft.spells.some((spell) => spell.name === name)) return;
+  if (!SPELL_BY_NAME.has(name)) return;
   if (selectedSpellLevels(draft) >= spellLevelAllowance(draft)) return;
   draft.spells.push({ name, level: 1 });
   elements.spellDialog.close();

@@ -51,11 +51,11 @@ try {
   click('#add-spell-button');
   click('[data-spell-name="Bless"]');
   click('[data-spell-action="increase"][data-spell-index="0"]');
-  click('#add-spell-button');
-  click('[data-spell-name="Blink"]');
+  click('[data-spell-action="increase"][data-spell-index="0"]');
   input('#unit-relic', 'Mystical Tome of Revelation', 'change');
+  const levelThreeIncreaseDisabled = document.querySelector('[data-spell-action="increase"][data-spell-index="0"]').disabled;
   click('#add-spell-button');
-  click('[data-spell-name="Summon"]');
+  click('[data-spell-name="Bless"]');
   const tomeSpellCapacity = document.querySelector('#spell-count').textContent;
   click('#save-unit-button');
 
@@ -136,6 +136,7 @@ try {
     blinkTooltip: document.querySelector('[data-spell-name="Blink"]')?.title || '',
     tomeTooltip: document.querySelector('#unit-relic option[value="Mystical Tome of Revelation"]')?.title || '',
     tomeSpellCapacity,
+    levelThreeIncreaseDisabled,
     cardSpellNames: cardData.flatMap((card) => card.abilities.filter((ability) => ability.kind === 'Spell').map((ability) => ability.name)),
     dragReordered: orderBeforeDrag[0] === orderAfterDrag[1] && orderBeforeDrag[1] === orderAfterDrag[0],
     dragHandles: document.querySelectorAll('[data-drag-handle]').length,
@@ -184,16 +185,17 @@ try {
   if (-not $result.rulesDisabledWhenEmpty -or -not $result.rulesButtonEnabled) { throw "Expected Rules to be disabled with no selected rules and enabled after building the army." }
   if ($result.cardCount -ne 2 -or $result.cardPdfType -ne "application/pdf" -or $result.cardPdfSize -lt 1000) { throw "Expected two generated cards in a non-empty PDF." }
   if ($result.downloadedCardFile -ne "fantastic-battles-army-unit-cards.pdf") { throw "Expected the Cards action to download the army-named PDF." }
-  if ($result.rulesCount -ne 6 -or $result.rulesPdfType -ne "application/pdf" -or $result.rulesPdfSize -lt 1000) { throw "Expected six unique selected rules in a non-empty PDF." }
+  if ($result.rulesCount -ne 5 -or $result.rulesPdfType -ne "application/pdf" -or $result.rulesPdfSize -lt 1000) { throw "Expected five unique selected rules in a non-empty PDF." }
   if ($result.downloadedRulesFile -ne "fantastic-battles-army-rules-reference.pdf") { throw "Expected the Rules action to download the army-named PDF." }
   if ($result.strategyTooltip -like "*Add Agent*" -or $result.strategyTooltip -notlike "*Sowing discord*") { throw "Expected strategy tooltips to contain descriptions without add prompts." }
   if (-not $result.headerTooltipsPresent -or -not $result.rulesBetweenCardsAndDeploy) { throw "Expected descriptive header tooltips and Rules between Cards and Deploy." }
   if ($result.actionTooltips.cards -ne "Print and cut out unit cards for the battlefield." -or $result.actionTooltips.rules -ne "Print the rules your army uses." -or $result.actionTooltips.deploy -ne "Plan your army's deployment.") { throw "Expected the requested Cards, Rules, and Deploy tooltips." }
-  if ($result.spells.Count -ne 3 -or $result.spells[0].name -ne "Bless" -or $result.spells[0].level -ne 2 -or $result.spells[1].name -ne "Blink" -or $result.spells[1].level -ne 1 -or $result.spells[2].name -ne "Summon" -or $result.spells[2].level -ne 1) { throw "Expected four spell levels on the Tome-bearing Mage-lord." }
-  if (-not ($result.spellChips | Where-Object { $_ -like "*Bless L2" }) -or -not ($result.spellChips | Where-Object { $_ -like "*Blink L1" }) -or -not ($result.spellChips | Where-Object { $_ -like "*Summon L1" })) { throw "Expected selected spells in the roster." }
+  if ($result.spells.Count -ne 2 -or $result.spells[0].name -ne "Bless" -or $result.spells[0].level -ne 3 -or $result.spells[1].name -ne "Bless" -or $result.spells[1].level -ne 1) { throw "Expected Bless at levels 3 and 1 on the Tome-bearing Mage-lord." }
+  if (($result.spellChips | Where-Object { $_ -like "*Bless L3" }).Count -ne 1 -or ($result.spellChips | Where-Object { $_ -like "*Bless L1" }).Count -ne 1) { throw "Expected both Bless selections in the roster." }
   if ($result.tomeSpellCapacity -ne "4 / 4 levels" -or $result.tomeTooltip -notlike "*additional spell level*") { throw "Expected Mystical Tome to visibly grant a fourth spell level." }
+  if (-not $result.levelThreeIncreaseDisabled) { throw "Expected individual spells to remain capped at level 3 with the Tome." }
   if ($result.blinkTooltip -notlike "*Roll needed: 5+ (errata)*") { throw "Expected the Blink errata in its tooltip." }
-  if ($result.cardSpellNames -notcontains "Bless L2" -or $result.cardSpellNames -notcontains "Blink L1" -or $result.cardSpellNames -notcontains "Summon L1") { throw "Expected spell names and levels in unit-card data." }
+  if ($result.cardSpellNames -notcontains "Bless L3" -or $result.cardSpellNames -notcontains "Bless L1") { throw "Expected both Bless selections in unit-card data." }
   if (-not $result.dragReordered -or $result.dragHandles -ne 2 -or $result.directionButtons -ne 0) { throw "Expected drag handles to reorder units without Up/Down buttons." }
 
   $result | ConvertTo-Json -Compress

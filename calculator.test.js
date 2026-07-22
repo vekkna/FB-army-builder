@@ -9,9 +9,10 @@ import {
   canTakeRelic,
   getTraitAvailability,
   printableRosterUnitKey,
+  selectedSpellLevels,
+  spellLevelAllowance,
   traitsConflict,
   validateUnit,
-  spellLevelAllowance,
 } from "./calculator.js";
 
 const unit = (overrides = {}) => ({
@@ -200,6 +201,20 @@ test("Mage-lords and Magic-users receive three spell levels", () => {
   mage.relic = "Mystical Tome of Revelation";
   assert.equal(spellLevelAllowance(mage), 4);
   assert.equal(validateUnit(mage).some(({ code }) => code === "spell-levels-max"), false);
+});
+
+test("Mystical Tome permits a repeated spell but no selection above level three", () => {
+  const mage = unit({
+    profile: "Magic-user",
+    relic: "Mystical Tome of Revelation",
+    spells: [{ name: "Bless", level: 3 }, { name: "Bless", level: 1 }],
+  });
+
+  assert.equal(selectedSpellLevels(mage), 4);
+  assert.equal(validateUnit(mage).some(({ code }) => code.startsWith("spell-")), false);
+
+  mage.spells = [{ name: "Bless", level: 4 }];
+  assert.equal(validateUnit(mage).some(({ code }) => code === "spell-level"), true);
 });
 
 test("non-spellcasters cannot retain spell selections", () => {

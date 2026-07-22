@@ -39,7 +39,9 @@ export function printableRosterUnitKey(unit) {
     ? unit.spells
       .filter((spell) => spell?.name)
       .map((spell) => [String(spell.name), Number(spell.level) || 1])
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([leftName, leftLevel], [rightName, rightLevel]) => (
+        leftName.localeCompare(rightName) || leftLevel - rightLevel
+      ))
     : [];
   return JSON.stringify({
     name: String(unit?.name || "").trim(),
@@ -160,10 +162,6 @@ export function validateUnit(unit) {
     if (!Number.isInteger(Number(spell?.level)) || Number(spell.level) < 1 || Number(spell.level) > 3) {
       issues.push({ code: "spell-level", message: `${spell?.name || "A spell"} must be level 1, 2, or 3.` });
     }
-  }
-  const spellNames = spells.map(({ name }) => name);
-  if (new Set(spellNames).size !== spellNames.length) {
-    issues.push({ code: "spell-duplicate", message: "The same spell cannot be selected twice." });
   }
   if (spells.length && !canChooseSpells(unit)) {
     issues.push({ code: "spell-character", message: "Only Mage-lords and Magic-users may choose spells." });
