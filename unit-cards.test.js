@@ -6,6 +6,7 @@ import {
   CARDS_PER_PAGE,
   createUnitCardsPdf,
   displayedCardAbilities,
+  UNIT_CARD_ABILITY_FONT_SIZE,
   UNIT_CARD_SIZE,
   unitCardPageCount,
   unitCardsFileName,
@@ -93,7 +94,8 @@ test("unit-card PDF is valid, paginated, and contains roster text", async () => 
   assert.ok(text.includes("(Guard \\(North\\))"));
   assert.ok(!text.includes("(BAS)"), "base count is omitted from the card");
   assert.ok(text.includes("(Fast)") && text.includes("(Doughty)"), "traits are included in the left panel");
-  assert.match(text, /\/F3 12\.32 Tf [^\n]*\(Doughty\) Tj/, "trait text is maximized within its quarter");
+  assert.match(text, /\/F3 6\.16 Tf [^\n]*\(Fast\) Tj/, "short traits use the shared ability size");
+  assert.match(text, /\/F3 6\.16 Tf [^\n]*\(Doughty\) Tj/, "all trait text uses the shared ability size");
   assert.match(text, /\/F1 7\.20 Tf [^\n]*\(5\) Tj/, "stat values use the enlarged size");
   assert.match(text, /56\.69 56\.69 re/, "the right-hand box is exactly 20 mm square");
   const crossReferenceOffset = Number(text.match(/startxref\n(\d+)/)?.[1]);
@@ -113,6 +115,17 @@ test("unit-card PDF is valid, paginated, and contains roster text", async () => 
   assert.ok(cardRects.length >= 2, "both card outlines are present");
   assert.equal(Number((Number(cardRects[1][1]) - Number(cardRects[0][1])).toFixed(2)), 170.08, "cards share a cut edge");
   assert.equal(cardRects[1][2], cardRects[0][2], "adjacent cards are aligned");
+});
+
+test("card abilities share the size required by the longest trait labels", async () => {
+  assert.equal(UNIT_CARD_ABILITY_FONT_SIZE.toFixed(2), "6.16");
+  const pdf = createUnitCardsPdf(buildUnitCardData([company({
+    traits: ["Powerful missile weapons"],
+  })]));
+  const text = new TextDecoder("windows-1252").decode(await pdf.arrayBuffer());
+  assert.match(text, /\/F3 6\.16 Tf [^\n]*\(Fast\) Tj/);
+  assert.match(text, /\/F3 6\.16 Tf [^\n]*\(Powerful\) Tj/);
+  assert.match(text, /\/F3 6\.16 Tf [^\n]*\(missile weapons\) Tj/);
 });
 
 test("maximum-length unit names stay within the title area", async () => {

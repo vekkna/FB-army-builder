@@ -1,4 +1,5 @@
 import { calculateUnit } from "./calculator.js";
+import { SPELLS, TRAITS } from "./data.js";
 
 const MM = 72 / 25.4;
 const A4_LANDSCAPE = [297 * MM, 210 * MM];
@@ -9,6 +10,9 @@ const CARD_W = CARD_WIDTH_MM * MM;
 const CARD_H = CARD_HEIGHT_MM * MM;
 const LEFT_PANEL_W = (CARD_WIDTH_MM - RIGHT_BOX_SIZE_MM) * MM;
 const RIGHT_BOX_SIZE = RIGHT_BOX_SIZE_MM * MM;
+const ABILITY_AREA_HEIGHT = CARD_H - 3.8 * MM - 4.6 * MM;
+const ABILITY_CELL_MAX_WIDTH = LEFT_PANEL_W / 2 - 1.2 * MM;
+const ABILITY_CELL_MAX_HEIGHT = ABILITY_AREA_HEIGHT / 2 - 0.8 * MM;
 const GRID_GAP = 0;
 const GRID_COLUMNS = Math.max(1, Math.floor((A4_LANDSCAPE[0] + GRID_GAP) / (CARD_W + GRID_GAP)));
 const GRID_ROWS = Math.max(1, Math.floor((A4_LANDSCAPE[1] + GRID_GAP) / (CARD_H + GRID_GAP)));
@@ -176,6 +180,15 @@ function fitAbilityText(text, maximumWidth, maximumHeight, preferred) {
   return candidates.reduce((best, candidate) => candidate.size > best.size ? candidate : best);
 }
 
+const ALL_CARD_ABILITY_NAMES = [
+  ...TRAITS.map(({ name }) => name),
+  ...SPELLS.map(({ name }) => `${name} L3`),
+];
+
+export const UNIT_CARD_ABILITY_FONT_SIZE = Math.min(...ALL_CARD_ABILITY_NAMES.map((name) => (
+  fitAbilityText(name, ABILITY_CELL_MAX_WIDTH, ABILITY_CELL_MAX_HEIGHT, 14).size
+)));
+
 function roundedRect(x, y, width, height, radius) {
   const k = 0.55228475;
   const r = Math.min(radius, width / 2, height / 2);
@@ -276,12 +289,12 @@ function drawCardContent(canvas, unit, x, y) {
     const rowFromTop = Math.floor(index / 2);
     const cellX = areaX + column * cellWidth;
     const cellY = areaY + (1 - rowFromTop) * cellHeight;
-    const fitted = fitAbilityText(ability.name, cellWidth - 1.2 * MM, cellHeight - 0.8 * MM, 14);
-    const lineHeight = fitted.size * 1.15;
-    const centerY = cellY + cellHeight / 2 - fitted.size * 0.34;
+    const fitted = fitAbilityText(ability.name, ABILITY_CELL_MAX_WIDTH, ABILITY_CELL_MAX_HEIGHT, 14);
+    const lineHeight = UNIT_CARD_ABILITY_FONT_SIZE * 1.15;
+    const centerY = cellY + cellHeight / 2 - UNIT_CARD_ABILITY_FONT_SIZE * 0.34;
     fitted.lines.forEach((line, lineIndex) => {
       const lineY = centerY + ((fitted.lines.length - 1) / 2 - lineIndex) * lineHeight;
-      canvas.text(cellX + cellWidth / 2, lineY, line, fitted.size, "F3", 0, "center");
+      canvas.text(cellX + cellWidth / 2, lineY, line, UNIT_CARD_ABILITY_FONT_SIZE, "F3", 0, "center");
     });
   });
 }
