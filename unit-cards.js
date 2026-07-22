@@ -9,7 +9,7 @@ const CARD_W = CARD_WIDTH_MM * MM;
 const CARD_H = CARD_HEIGHT_MM * MM;
 const LEFT_PANEL_W = (CARD_WIDTH_MM - RIGHT_BOX_SIZE_MM) * MM;
 const RIGHT_BOX_SIZE = RIGHT_BOX_SIZE_MM * MM;
-const GRID_GAP = 2 * MM;
+const GRID_GAP = 0;
 const GRID_COLUMNS = Math.max(1, Math.floor((A4_LANDSCAPE[0] + GRID_GAP) / (CARD_W + GRID_GAP)));
 const GRID_ROWS = Math.max(1, Math.floor((A4_LANDSCAPE[1] + GRID_GAP) / (CARD_H + GRID_GAP)));
 
@@ -54,10 +54,15 @@ export function buildUnitCardData(units = []) {
 
 export function displayedCardAbilities(unit) {
   const abilities = Array.isArray(unit?.abilities) ? unit.abilities : [];
-  const relics = abilities.filter((ability) => ability.kind === "Relic");
   const spells = abilities.filter((ability) => ability.kind === "Spell");
-  if (spells.length) return [...relics.slice(0, 1), ...spells];
-  return relics.length ? relics.slice(0, 1) : abilities.slice(0, 4);
+  if (spells.length) return spells.slice(0, 4);
+  return abilities.filter((ability) => ability.kind !== "Relic").slice(0, 4);
+}
+
+function displayedCardTitle(unit) {
+  const abilities = Array.isArray(unit?.abilities) ? unit.abilities : [];
+  const relic = abilities.find((ability) => ability.kind === "Relic" && clean(ability.name));
+  return relic ? `${clean(unit?.name)} - ${clean(relic.name)}` : clean(unit?.name);
 }
 
 export function unitCardPageCount(cardCount) {
@@ -148,9 +153,27 @@ function fitSize(text, maximum, preferred, minimum, bold = false) {
 }
 
 function fitTitleSize(text, maximum) {
-  const preferred = 7.2;
+  const preferred = 8;
   const estimate = approxTextWidth(text, preferred, true);
   return Math.max(1.4, estimate <= maximum ? preferred : preferred * maximum / estimate);
+}
+
+function fitAbilityText(text, maximumWidth, maximumHeight, preferred) {
+  const value = clean(text);
+  const candidates = [];
+  const addCandidate = (lines) => {
+    const widest = Math.max(...lines.map((line) => pdfTextWidth(line, preferred, "F3")));
+    const widthSize = widest > maximumWidth ? preferred * maximumWidth / widest : preferred;
+    const heightSize = maximumHeight / (lines.length * 1.15);
+    candidates.push({ lines, size: Math.min(preferred, widthSize, heightSize) });
+  };
+
+  addCandidate([value]);
+  const words = value.split(/\s+/).filter(Boolean);
+  for (let split = 1; split < words.length; split += 1) {
+    addCandidate([words.slice(0, split).join(" "), words.slice(split).join(" ")]);
+  }
+  return candidates.reduce((best, candidate) => candidate.size > best.size ? candidate : best);
 }
 
 function roundedRect(x, y, width, height, radius) {
@@ -205,57 +228,61 @@ function drawCardContent(canvas, unit, x, y) {
   canvas.rect(x, y, CARD_W, CARD_H, 0.08, 1, 0.6);
   canvas.rect(x + LEFT_PANEL_W, y, RIGHT_BOX_SIZE, RIGHT_BOX_SIZE, 0.08, 1, 0.6);
 
-  const padding = 1 * MM;
   const top = y + CARD_H;
-  const titleX = x + padding;
-  const titleMax = LEFT_PANEL_W - 2 * padding;
-  const titleSize = fitTitleSize(unit.name, titleMax);
-  canvas.text(titleX, top - 4.05 * MM, unit.name, titleSize, "F1");
+  const nameBandHeight = 3.8 * MM;
+  const titlePadding = 0.7 * MM;
+  const titleX = x + titlePadding;
+  const titleMax = LEFT_PANEL_W - 2 * titlePadding;
+  const title = displayedCardTitle(unit);
+  const titleSize = fitTitleSize(title, titleMax);
+  canvas.text(titleX, top - 2.8 * MM, title, titleSize, "F1");
 
-  const statHeight = 6.2 * MM;
-  const statY = y + 7.3 * MM;
-  const statX = x + padding;
-  const statAreaWidth = LEFT_PANEL_W - 2 * padding;
-  const statWidth = statAreaWidth / 6;
+  const statHeight = 4.6 * MM;
+  const statY = top - nameBandHeight - statHeight;
+  const statX = x;
+  const statAreaWidth = LEFT_PANEL_W;
+  const statWidth = statAreaWidth / 5;
   const statItems = [
     ["RES", unit.resolve], ["MOV", unit.move], ["MEL", unit.melee],
-    ["SHT", `${clean(unit.short)}/${clean(unit.long)}`], ["DEF", unit.defence], ["BAS", unit.bases],
+    ["SHT", `${clean(unit.short)}/${clean(unit.long)}`], ["DEF", unit.defence],
   ];
-  canvas.rect(statX, statY, statAreaWidth, statHeight, 0.6, 0.975, 0.28, 0.7);
+  canvas.rect(statX, statY, statAreaWidth, statHeight, 0.6, 0.975, 0.28);
   statItems.forEach(([label, value], index) => {
     const statCellX = statX + index * statWidth;
     if (index) canvas.line(statCellX, statY, statCellX, statY + statHeight, 0.22, 0.68);
-    canvas.text(statCellX + statWidth / 2, statY + 3.65 * MM, label, 2.8, "F3", 0.34, "center");
+    canvas.text(statCellX + statWidth / 2, statY + 3.3 * MM, label, 3.4, "F3", 0.34, "center");
     const display = clean(value) || "-";
-    const valueSize = fitSize(display, statWidth - 1.2 * MM, 5.2, 3.2, true);
-    canvas.text(statCellX + statWidth / 2, statY + 0.95 * MM, display, valueSize, "F1", 0, "center");
+    const valueSize = fitSize(display, statWidth - 0.8 * MM, 7.2, 4.5, true);
+    canvas.text(statCellX + statWidth / 2, statY + 0.65 * MM, display, valueSize, "F1", 0, "center");
   });
 
-  const abilities = displayedCardAbilities(unit);
-  const areaX = x + padding;
-  const areaY = y + padding;
-  const areaWidth = LEFT_PANEL_W - 2 * padding;
-  const areaHeight = statY - 1.2 * MM - areaY;
+  const abilities = displayedCardAbilities(unit).slice(0, 4);
+  const areaX = x;
+  const areaY = y;
+  const areaWidth = LEFT_PANEL_W;
+  const areaHeight = statY - areaY;
+  const cellWidth = areaWidth / 2;
+  const cellHeight = areaHeight / 2;
+  canvas.line(areaX + cellWidth, areaY, areaX + cellWidth, areaY + areaHeight, 0.22, 0.72);
+  canvas.line(areaX, areaY + cellHeight, areaX + areaWidth, areaY + cellHeight, 0.22, 0.72);
+
   if (!abilities.length) {
-    canvas.text(x + LEFT_PANEL_W / 2, areaY + areaHeight / 2 - 1.3, "NO TRAITS", 3.7, "F3", 0.48, "center");
+    canvas.text(areaX + cellWidth / 2, areaY + cellHeight * 1.5 - 1.8, "NO TRAITS", 5.2, "F3", 0.48, "center");
     return;
   }
 
-  const gap = 0.6 * MM;
-  const columns = abilities.length >= 3 ? 2 : 1;
-  const rows = Math.ceil(abilities.length / columns);
-  const preferredSize = abilities.length >= 4 ? 3.4 : abilities.length <= 2 ? 4.3 : 3.8;
-  const cellWidth = (areaWidth - gap * (columns - 1)) / columns;
-  const cellHeight = (areaHeight - gap * (rows - 1)) / rows;
   abilities.forEach((ability, index) => {
-    const column = index % columns;
-    const rowFromTop = Math.floor(index / columns);
-    const cellX = areaX + column * (cellWidth + gap);
-    const cellY = areaY + (rows - 1 - rowFromTop) * (cellHeight + gap);
-    canvas.rect(cellX, cellY, cellWidth, cellHeight, 0.68, 0.975, 0.2, 0.6);
-    const abilitySize = fitSize(ability.name, cellWidth - 1.4 * MM, preferredSize, 1.8, true);
-    canvas.text(cellX + cellWidth / 2, cellY + cellHeight / 2 - abilitySize * 0.34,
-      ability.name, abilitySize, "F3", 0, "center");
+    const column = index % 2;
+    const rowFromTop = Math.floor(index / 2);
+    const cellX = areaX + column * cellWidth;
+    const cellY = areaY + (1 - rowFromTop) * cellHeight;
+    const fitted = fitAbilityText(ability.name, cellWidth - 1.2 * MM, cellHeight - 0.8 * MM, 14);
+    const lineHeight = fitted.size * 1.15;
+    const centerY = cellY + cellHeight / 2 - fitted.size * 0.34;
+    fitted.lines.forEach((line, lineIndex) => {
+      const lineY = centerY + ((fitted.lines.length - 1) / 2 - lineIndex) * lineHeight;
+      canvas.text(cellX + cellWidth / 2, lineY, line, fitted.size, "F3", 0, "center");
+    });
   });
 }
 
