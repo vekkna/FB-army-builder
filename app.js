@@ -5,7 +5,6 @@ import {
   RELIC_BY_NAME,
   SPELLS,
   SPELL_BY_NAME,
-  STAT_KEYS,
   STRATEGIES,
   STRATEGY_BY_NAME,
   TRAITS,
@@ -13,6 +12,7 @@ import {
   WORKBOOK_META,
 } from "./data.js";
 import {
+  armyRosterStats,
   calculateArmy,
   calculateUnit,
   canChooseSpells,
@@ -306,11 +306,12 @@ function displayedUnitPointsLabel(stats) {
   return stats.bases === 0 ? "summon cost" : "unit total";
 }
 
-function statMarkup(stats, className = "") {
-  return `<div class="${className}">${STAT_KEYS.map(([key, , short]) => `
+function statMarkup(stats, profileName, className = "") {
+  const items = armyRosterStats(stats, profileName);
+  return `<div class="${className}" style="--stat-columns: ${items.length}">${items.map(({ label, value }) => `
     <div class="stat-cell">
-      <span>${short}</span>
-      <strong>${integer.format(Number(stats[key]) || 0)}</strong>
+      <span>${label}</span>
+      <strong>${escapeHTML(value)}</strong>
     </div>`).join("")}</div>`;
 }
 
@@ -445,7 +446,7 @@ function renderDraft() {
         <div class="preview-title"><small>${escapeHTML(draft.profile)} · ${plural(stats.bases, "base")}</small><strong>${escapeHTML(title)}</strong></div>
         <div class="preview-cost"><strong>${integer.format(displayedUnitPoints(stats))} pts</strong><small>${displayedUnitPointsLabel(stats)}</small></div>
       </div>
-      ${statMarkup(stats, "stat-ribbon")}
+      ${statMarkup(stats, draft.profile, "stat-ribbon")}
       ${issues.length ? `<div class="preview-error">${escapeHTML(issues[0].message)}</div>` : ""}`;
   }
 
@@ -552,7 +553,7 @@ function renderRoster(army) {
         </div>
         <div class="unit-card-cost"><strong>${integer.format(displayedUnitPoints(stats))} pts</strong><small>${displayedUnitPointsLabel(stats)}</small></div>
       </div>
-      ${statMarkup(stats, "unit-card-stats")}
+      ${statMarkup(stats, unit.profile, "unit-card-stats")}
       <div class="upgrade-row">${upgradeChips(unit)}</div>
       <div class="unit-card-actions" aria-label="Actions for ${escapeHTML(title)}">
         <span class="unit-drag-handle" data-drag-handle role="button" tabindex="0"

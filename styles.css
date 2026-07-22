@@ -955,7 +955,7 @@ p {
 
 .stat-ribbon {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(var(--stat-columns, 5), 1fr);
   padding: 7px 6px 8px;
 }
 
@@ -1402,7 +1402,7 @@ p {
 
 .unit-card-stats {
   display: grid;
-  grid-template-columns: repeat(7, minmax(42px, 1fr));
+  grid-template-columns: repeat(var(--stat-columns, 5), minmax(42px, 1fr));
   gap: 4px;
   margin-top: 8px;
   padding: 5px;
@@ -1962,7 +1962,7 @@ p {
 
   .stat-ribbon,
   .unit-card-stats {
-    grid-template-columns: repeat(7, minmax(34px, 1fr));
+    grid-template-columns: repeat(var(--stat-columns, 5), minmax(34px, 1fr));
   }
 
   .stat-cell strong,
@@ -2209,7 +2209,7 @@ p {
   }
 
   .unit-card-stats {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--stat-columns, 5), minmax(0, 1fr));
     gap: 0;
     margin-top: 1mm;
     padding: .65mm 0;

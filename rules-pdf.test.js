@@ -48,6 +48,19 @@ test("rules reference PDF contains selected names and descriptions", async () =>
   assert.ok(text.includes("roll of 5+"));
   assert.ok(text.includes("Incompatible traits: artillery"));
   assert.ok(!text.includes("(Mystical Tome of Revelation)"));
+
+  const doughtyStart = text.indexOf("(Doughty)");
+  const doughtyEnd = text.indexOf("(Shieldwall)", doughtyStart);
+  const doughtyCommands = [...text.slice(doughtyStart, doughtyEnd).matchAll(
+    /1 0 0 1 [0-9.]+ ([0-9.]+) Tm \(([^\n]*)\) Tj ET/g,
+  )].map((match) => ({ y: Number(match[1]), value: match[2] }));
+  const incompatibleIndex = doughtyCommands.findIndex(({ value }) => value.startsWith("Incompatible traits:"));
+  assert.ok(incompatibleIndex > 0, "Doughty's incompatible-traits line is present");
+  assert.equal(
+    Number((doughtyCommands[incompatibleIndex - 1].y - doughtyCommands[incompatibleIndex].y).toFixed(1)),
+    9.4,
+    "no empty line precedes incompatible traits",
+  );
 });
 
 test("empty references are rejected and filenames follow the army name", () => {

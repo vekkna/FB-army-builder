@@ -89,6 +89,17 @@ function wrapText(value, maximum, size = BODY_SIZE, bold = false) {
   });
 }
 
+function compactIncompatibleTraitSpacing(lines) {
+  const compacted = [];
+  for (const line of lines) {
+    if (line.startsWith("Incompatible traits:")) {
+      while (compacted.at(-1) === "") compacted.pop();
+    }
+    compacted.push(line);
+  }
+  return compacted;
+}
+
 class PdfCanvas {
   constructor() {
     this.commands = [];
@@ -169,7 +180,7 @@ function entryLayout(entry) {
   const textWidth = COLUMN_WIDTH - 14;
   const nameLines = wrapText(entry.name, textWidth, 10.2, true);
   const metaLines = entry.meta ? wrapText(entry.meta, textWidth, 7.3, true) : [];
-  const bodyLines = wrapText(entry.description, textWidth);
+  const bodyLines = compactIncompatibleTraitSpacing(wrapText(entry.description, textWidth));
   const height = 6 + nameLines.length * 11.8 + metaLines.length * 8.7 + bodyLines.length * BODY_LEADING + 6;
   return { nameLines, metaLines, bodyLines, height };
 }

@@ -21,6 +21,18 @@ export function isHeroProfile(profileName) {
   return HERO_PROFILES.has(profileName);
 }
 
+export function armyRosterStats(stats, profileName) {
+  const items = [
+    { label: "RES", value: value(stats, "resolve") },
+    { label: "MOV", value: value(stats, "move") },
+    { label: "MEL", value: value(stats, "melee") },
+    { label: "SHT", value: `${value(stats, "shootShort")}/${value(stats, "shootLong")}` },
+    { label: "DEF", value: value(stats, "defence") },
+  ];
+  if (isHeroProfile(profileName)) items.push({ label: "COM", value: value(stats, "command") });
+  return items;
+}
+
 export function hasCharacter(unit) {
   return isHeroProfile(unit?.profile) || getTraitNames(unit).some((name) => CHARACTER_TRAITS.has(name));
 }

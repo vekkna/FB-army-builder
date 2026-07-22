@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  armyRosterStats,
   calculateArmy,
   calculateUnit,
   canChooseSpells,
@@ -36,6 +37,24 @@ test("base profile values match the workbook", () => {
     bases: 1,
     total: 30,
   });
+});
+
+test("army roster stats combine shooting and omit command from companies", () => {
+  const companyStats = calculateUnit(unit({
+    profile: "Irregular company",
+    traits: ["Character (Captain)", "Shooting (mixed)"],
+  }));
+  assert.equal(companyStats.command, 2, "the attached character still contributes to calculations");
+  assert.deepEqual(armyRosterStats(companyStats, "Irregular company"), [
+    { label: "RES", value: 4 },
+    { label: "MOV", value: 3 },
+    { label: "MEL", value: 4 },
+    { label: "SHT", value: "2/1" },
+    { label: "DEF", value: 4 },
+  ]);
+
+  assert.deepEqual(armyRosterStats(calculateUnit(unit({ profile: "Warlord" })), "Warlord").map(({ label }) => label),
+    ["RES", "MOV", "MEL", "SHT", "DEF", "COM"]);
 });
 
 test("trait and relic modifiers are added before multiplying by bases", () => {
