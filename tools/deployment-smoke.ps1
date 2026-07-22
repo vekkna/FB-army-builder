@@ -175,6 +175,7 @@ try {
   if ($value.pieces -ne 5 -or $value.companies -ne 4 -or $value.characters -ne 1) { throw "Expected four company bases and one character." }
   if ($value.squares -ne 4 -or $value.circles -ne 1 -or $value.legendItems -ne 2) { throw "Deployment DOM markers or legend were incorrect." }
   if ($value.legendText -notlike "*Relic: Mystical Tome of Revelation*") { throw "Expected character relics in the deployment key." }
+  if ($value.legendText -notlike "*Spells: Bless L2, Blink L1, Summon L1*") { throw "Expected character spells in the deployment key." }
   if ($value.characterTooltip -notlike "*relic: Mystical Tome of Revelation*") { throw "Expected character relics in marker tooltips." }
   if ([Math]::Abs($value.ratio - (13 / 3)) -gt .02 -or [Math]::Abs($value.squareRatio - 1) -gt .02) { throw "Deployment geometry was not proportional." }
   if ($value.characterLayer -le $value.squareLayer) { throw "Expected character markers to sit above company bases." }

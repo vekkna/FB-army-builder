@@ -33,6 +33,25 @@ export function armyRosterStats(stats, profileName) {
   return items;
 }
 
+export function printableRosterUnitKey(unit) {
+  const traits = Array.isArray(unit?.traits) ? unit.traits.filter(Boolean).map(String).sort() : [];
+  const spells = Array.isArray(unit?.spells)
+    ? unit.spells
+      .filter((spell) => spell?.name)
+      .map((spell) => [String(spell.name), Number(spell.level) || 1])
+      .sort(([left], [right]) => left.localeCompare(right))
+    : [];
+  return JSON.stringify({
+    name: String(unit?.name || "").trim(),
+    profile: String(unit?.profile || ""),
+    bases: Number(unit?.bases) || 0,
+    racialTrait: String(unit?.racialTrait || ""),
+    traits,
+    relic: String(unit?.relic || ""),
+    spells,
+  });
+}
+
 export function hasCharacter(unit) {
   return isHeroProfile(unit?.profile) || getTraitNames(unit).some((name) => CHARACTER_TRAITS.has(name));
 }

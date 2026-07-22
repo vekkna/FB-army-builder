@@ -12,6 +12,8 @@ import {
   deploymentDataFromPieces,
   deploymentPieceId,
   deploymentPiecesInRect,
+  deploymentSpellLabels,
+  deploymentSpellSummary,
 } from "./deployment.js";
 
 const unit = (overrides = {}) => ({
@@ -28,7 +30,14 @@ const unit = (overrides = {}) => ({
 test("deployment pieces use square company bases and circular standalone characters", () => {
   const plan = createDeploymentPlan([
     unit({ bases: 3, traits: ["Character (Captain)"] }),
-    unit({ id: "captain", name: "Rowan", profile: "Captain", bases: 2, relic: "Ring of Infinite Wishes" }),
+    unit({
+      id: "captain",
+      name: "Rowan",
+      profile: "Mage-lord",
+      bases: 2,
+      relic: "Ring of Infinite Wishes",
+      spells: [{ name: "Blink", level: 2 }, { name: "Summon", level: 1 }],
+    }),
     unit({ id: "summon", name: "Spirit Host", bases: 0 }),
   ]);
 
@@ -39,7 +48,21 @@ test("deployment pieces use square company bases and circular standalone charact
   assert.ok(plan.pieces.slice(3).every(({ sizeCm }) => sizeCm === CHARACTER_DIAMETER_CM));
   assert.equal(plan.pieces[0].characterTrait, "Character (Captain)");
   assert.ok(plan.pieces.slice(3).every(({ relic }) => relic === "Ring of Infinite Wishes"));
+  assert.equal(deploymentSpellSummary({
+    profile: "Mage-lord",
+    spells: [{ name: "Blink", level: 2 }, { name: "Summon", level: 1 }],
+  }), "Spells: Blink L2, Summon L1");
   assert.deepEqual(plan.summons.map(({ label }) => label), ["Spirit Host"]);
+});
+
+test("deployment spell labels include names and levels", () => {
+  assert.deepEqual(deploymentSpellLabels({
+    spells: [{ name: " Bless ", level: 2 }, { name: "Blink" }, { name: "", level: 3 }],
+  }), ["Bless L2", "Blink L1"]);
+  assert.deepEqual(deploymentSpellLabels({ spells: "Blink" }), []);
+  assert.equal(deploymentSpellSummary({ profile: "Mage-lord", spells: [] }), "Spells: none selected");
+  assert.equal(deploymentSpellSummary({ profile: "Magic-user", spells: [{ name: "Blink", level: 2 }] }), "Spells: Blink L2");
+  assert.equal(deploymentSpellSummary({ profile: "Captain", spells: [] }), "");
 });
 
 test("initial deployment is deterministic, grouped, and inside the 156 by 36cm zone", () => {

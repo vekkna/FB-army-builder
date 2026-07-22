@@ -1,4 +1,5 @@
 import { HERO_PROFILES } from "./data.js";
+import { spellLevelAllowance } from "./calculator.js";
 
 export const DEPLOYMENT_STORAGE_KEY = "fantastic-battles-deployment:v1";
 export const ZONE_WIDTH_CM = 156;
@@ -28,6 +29,22 @@ export function deploymentPieceId(unitId, baseIndex) {
 
 export function isDeploymentCharacter(unit) {
   return HERO_PROFILES.has(unit?.profile);
+}
+
+export function deploymentSpellLabels(unit) {
+  if (!Array.isArray(unit?.spells)) return [];
+  return unit.spells.flatMap((selection) => {
+    const name = String(selection?.name || "").trim();
+    if (!name) return [];
+    const level = Math.max(1, Math.round(Number(selection?.level) || 1));
+    return [`${name} L${level}`];
+  });
+}
+
+export function deploymentSpellSummary(unit) {
+  if (!spellLevelAllowance(unit)) return "";
+  const spells = deploymentSpellLabels(unit);
+  return spells.length ? `Spells: ${spells.join(", ")}` : "Spells: none selected";
 }
 
 export function clampDeploymentPosition(position, sizeCm) {
@@ -92,6 +109,7 @@ function makeGroup(unit, unitIndex) {
 
   const rows = Math.ceil(count / columns);
   const label = String(unit?.name || "").trim() || String(unit?.profile || "Unit");
+  const attachedCharacter = kind === "company" ? characterTrait(unit) : "";
   const pieces = Array.from({ length: count }, (_, baseIndex) => ({
     id: deploymentPieceId(unit?.id || `unit-${unitIndex}`, baseIndex),
     unitId: String(unit?.id || `unit-${unitIndex}`),
@@ -103,7 +121,7 @@ function makeGroup(unit, unitIndex) {
     kind,
     sizeCm,
     relic: typeof unit?.relic === "string" ? unit.relic : "",
-    characterTrait: kind === "company" ? characterTrait(unit) : "",
+    characterTrait: attachedCharacter,
     x: (baseIndex % columns) * sizeCm,
     y: Math.floor(baseIndex / columns) * sizeCm,
   }));

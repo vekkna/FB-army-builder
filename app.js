@@ -22,6 +22,7 @@ import {
   getTraitAvailability,
   getTraitNames,
   isHeroProfile,
+  printableRosterUnitKey,
   selectedSpellLevels,
   spellLevelAllowance,
   traitsConflict,
@@ -543,13 +544,23 @@ function renderRoster(army) {
   elements.footerStrategyPoints.textContent = `${integer.format(army.strategyPoints)} pts`;
   elements.footerTotal.textContent = `${integer.format(army.total)} pts`;
 
+  const printCounts = new Map();
+  for (const { unit } of army.units) {
+    const key = printableRosterUnitKey(unit);
+    printCounts.set(key, (printCounts.get(key) || 0) + 1);
+  }
+  const printedKeys = new Set();
   elements.rosterList.innerHTML = army.units.map(({ unit, stats }) => {
     const title = unit.name.trim() || unit.profile;
-    return `<article class="unit-card${editingId === unit.id ? " is-editing" : ""}" data-unit-id="${escapeHTML(unit.id)}">
+    const printKey = printableRosterUnitKey(unit);
+    const printCount = printCounts.get(printKey) || 1;
+    const isPrintDuplicate = printedKeys.has(printKey);
+    printedKeys.add(printKey);
+    return `<article class="unit-card${editingId === unit.id ? " is-editing" : ""}${isPrintDuplicate ? " is-print-duplicate" : ""}" data-unit-id="${escapeHTML(unit.id)}">
       <div class="unit-card-heading">
         <div class="unit-card-title">
           <h3>${escapeHTML(title)}</h3>
-          <div class="roster-unit-meta"><span>${escapeHTML(unit.profile)}</span><span>${plural(stats.bases, "base")}</span></div>
+          <div class="roster-unit-meta"><span>${escapeHTML(unit.profile)}</span><span>${plural(stats.bases, "base")}</span>${printCount > 1 && !isPrintDuplicate ? `<span class="print-copy-count">×${integer.format(printCount)} identical units</span>` : ""}</div>
         </div>
         <div class="unit-card-cost"><strong>${integer.format(displayedUnitPoints(stats))} pts</strong><small>${displayedUnitPointsLabel(stats)}</small></div>
       </div>

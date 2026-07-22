@@ -8,6 +8,7 @@ import {
   canChooseSpells,
   canTakeRelic,
   getTraitAvailability,
+  printableRosterUnitKey,
   traitsConflict,
   validateUnit,
   spellLevelAllowance,
@@ -55,6 +56,26 @@ test("army roster stats combine shooting and omit command from companies", () =>
 
   assert.deepEqual(armyRosterStats(calculateUnit(unit({ profile: "Warlord" })), "Warlord").map(({ label }) => label),
     ["RES", "MOV", "MEL", "SHT", "DEF", "COM"]);
+});
+
+test("printable roster identity ignores IDs but preserves meaningful differences", () => {
+  const first = unit({
+    id: "first",
+    name: "Guard",
+    bases: 3,
+    racialTrait: "Doughty",
+    traits: ["Shieldwall", "Reliable"],
+    spells: [{ name: "Blink", level: 2 }, { name: "Bless", level: 1 }],
+  });
+  const duplicate = {
+    ...structuredClone(first),
+    id: "second",
+    traits: ["Reliable", "Shieldwall"],
+    spells: [{ name: "Bless", level: 1 }, { name: "Blink", level: 2 }],
+  };
+  assert.equal(printableRosterUnitKey(first), printableRosterUnitKey(duplicate));
+  assert.notEqual(printableRosterUnitKey(first), printableRosterUnitKey({ ...duplicate, bases: 4 }));
+  assert.notEqual(printableRosterUnitKey(first), printableRosterUnitKey({ ...duplicate, name: "Other Guard" }));
 });
 
 test("trait and relic modifiers are added before multiplying by bases", () => {

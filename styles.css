@@ -1400,6 +1400,10 @@ p {
   font-size: 10px;
 }
 
+.print-copy-count {
+  display: none;
+}
+
 .unit-card-stats {
   display: grid;
   grid-template-columns: repeat(var(--stat-columns, 5), minmax(42px, 1fr));
@@ -2172,6 +2176,15 @@ p {
     background: transparent !important;
     border: .2mm solid #999;
     border-radius: .8mm;
+  }
+
+  .unit-card.is-print-duplicate {
+    display: none;
+  }
+
+  .print-copy-count {
+    display: inline;
+    font-weight: 800;
   }
 
   .unit-card-heading {

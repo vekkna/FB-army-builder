@@ -7,8 +7,9 @@ import {
   createDeploymentPlan,
   deploymentDataFromPieces,
   deploymentPiecesInRect,
+  deploymentSpellSummary,
   sanitiseDeploymentData,
-} from "./deployment.js";
+} from "./deployment.js?v=spell-key-2";
 import { calculateUnit } from "./calculator.js";
 
 const MUSTER_STORAGE_KEY = "fantastic-battles-muster:v1";
@@ -156,6 +157,8 @@ function renderLegend() {
   elements.legend.replaceChildren();
   for (const pieces of groupedPieces()) {
     const first = pieces[0];
+    const sourceUnit = army.units.find((unit) => String(unit?.id) === first.unitId);
+    const spellSummary = deploymentSpellSummary(sourceUnit);
     const item = document.createElement("li");
     item.style.setProperty("--unit-hue", hueFor(first.unitId));
 
@@ -178,6 +181,12 @@ function renderLegend() {
       relic.className = "legend-relic";
       relic.textContent = `Relic: ${first.relic}`;
       copy.append(relic);
+    }
+    if (spellSummary) {
+      const spells = document.createElement("span");
+      spells.className = "legend-spells";
+      spells.textContent = spellSummary;
+      copy.append(spells);
     }
     item.append(key, copy);
     elements.legend.append(item);
