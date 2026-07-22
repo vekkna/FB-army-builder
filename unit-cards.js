@@ -2,18 +2,19 @@ import { calculateUnit } from "./calculator.js";
 
 const MM = 72 / 25.4;
 const A4_LANDSCAPE = [297 * MM, 210 * MM];
-const DESIGN_CARD_W = 44 * MM;
-const DESIGN_CARD_H = 31 * MM;
-const CARD_WIDTH_MM = 68;
-const CARD_SCALE = CARD_WIDTH_MM / 44;
+const CARD_WIDTH_MM = 60;
+const CARD_HEIGHT_MM = 20;
+const RIGHT_BOX_SIZE_MM = 20;
 const CARD_W = CARD_WIDTH_MM * MM;
-const CARD_H = DESIGN_CARD_H * CARD_SCALE;
+const CARD_H = CARD_HEIGHT_MM * MM;
+const LEFT_PANEL_W = (CARD_WIDTH_MM - RIGHT_BOX_SIZE_MM) * MM;
+const RIGHT_BOX_SIZE = RIGHT_BOX_SIZE_MM * MM;
 const GRID_GAP = 2 * MM;
 const GRID_COLUMNS = Math.max(1, Math.floor((A4_LANDSCAPE[0] + GRID_GAP) / (CARD_W + GRID_GAP)));
 const GRID_ROWS = Math.max(1, Math.floor((A4_LANDSCAPE[1] + GRID_GAP) / (CARD_H + GRID_GAP)));
 
 export const CARDS_PER_PAGE = GRID_COLUMNS * GRID_ROWS;
-export const UNIT_CARD_SIZE = Object.freeze({ width: 68, height: 47.91, unit: "mm" });
+export const UNIT_CARD_SIZE = Object.freeze({ width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM, unit: "mm" });
 
 function clean(value) {
   if (value === null || value === undefined) return "";
@@ -147,38 +148,9 @@ function fitSize(text, maximum, preferred, minimum, bold = false) {
 }
 
 function fitTitleSize(text, maximum) {
-  const preferred = 9;
+  const preferred = 7.2;
   const estimate = approxTextWidth(text, preferred, true);
-  return Math.max(1, estimate <= maximum ? preferred : preferred * maximum / estimate);
-}
-
-function fitTextBlock(text, maximum, preferred, minimum, font = "F3") {
-  const value = clean(text);
-  const preferredWidth = pdfTextWidth(value, preferred, font);
-  const singleLineSize = Math.max(minimum,
-    preferredWidth <= maximum ? preferred : preferred * maximum / preferredWidth);
-  if (pdfTextWidth(value, singleLineSize, font) <= maximum) {
-    return { lines: [value], size: singleLineSize };
-  }
-
-  const words = value.split(/\s+/).filter(Boolean);
-  if (words.length > 1) {
-    let bestLines = null;
-    let bestWidth = Infinity;
-    for (let split = 1; split < words.length; split += 1) {
-      const lines = [words.slice(0, split).join(" "), words.slice(split).join(" ")];
-      const widest = Math.max(...lines.map((line) => pdfTextWidth(line, preferred, font)));
-      if (widest < bestWidth) {
-        bestLines = lines;
-        bestWidth = widest;
-      }
-    }
-    const size = bestWidth <= maximum ? preferred : preferred * maximum / bestWidth;
-    return { lines: bestLines, size: Math.min(preferred, size) };
-  }
-
-  const estimate = pdfTextWidth(value, preferred, font);
-  return { lines: [value], size: Math.min(preferred, preferred * maximum / estimate) };
+  return Math.max(1.4, estimate <= maximum ? preferred : preferred * maximum / estimate);
 }
 
 function roundedRect(x, y, width, height, radius) {
@@ -192,15 +164,6 @@ function roundedRect(x, y, width, height, radius) {
     `${f(x + r)} ${f(y + height)} l ` +
     `${f(x + r - k * r)} ${f(y + height)} ${f(x)} ${f(y + height - r + k * r)} ${f(x)} ${f(y + height - r)} c ` +
     `${f(x)} ${f(y + r)} l ${f(x)} ${f(y + r - k * r)} ${f(x + r - k * r)} ${f(y)} ${f(x + r)} ${f(y)} c h`;
-}
-
-function topRightRoundedRect(x, y, width, height, radius) {
-  const k = 0.55228475;
-  const r = Math.min(radius, width / 2, height / 2);
-  const f = (number) => number.toFixed(2);
-  return `${f(x)} ${f(y)} m ${f(x + width)} ${f(y)} l ${f(x + width)} ${f(y + height - r)} l ` +
-    `${f(x + width)} ${f(y + height - r + k * r)} ${f(x + width - r + k * r)} ${f(y + height)} ` +
-    `${f(x + width - r)} ${f(y + height)} c ${f(x)} ${f(y + height)} l h`;
 }
 
 class PdfCanvas {
@@ -239,59 +202,49 @@ class PdfCanvas {
 }
 
 function drawCardContent(canvas, unit, x, y) {
-  canvas.rect(x, y, DESIGN_CARD_W, DESIGN_CARD_H, 0.08, 1, 0.6, 3);
-  const top = y + DESIGN_CARD_H;
-  const titleMargin = 3.5;
-  const resolveBoxSize = 10 * MM;
-  const bandHeight = resolveBoxSize;
-  canvas.rect(x + titleMargin, top - bandHeight - titleMargin, DESIGN_CARD_W - 2 * titleMargin, bandHeight, 0.58, 0.925, 0.3, 1.5);
+  canvas.rect(x, y, CARD_W, CARD_H, 0.08, 1, 0.6);
+  canvas.rect(x + LEFT_PANEL_W, y, RIGHT_BOX_SIZE, RIGHT_BOX_SIZE, 0.08, 1, 0.6);
 
-  const resolveX = x + DESIGN_CARD_W - titleMargin - resolveBoxSize;
-  const resolveY = top - titleMargin - resolveBoxSize;
-  canvas.add(`0.080 G 0.28 w 1.000 g ${topRightRoundedRect(resolveX, resolveY, resolveBoxSize, resolveBoxSize, 1.5)} B`);
-
-  const titleX = x + 7;
-  const titleMax = resolveX - titleX - 3;
+  const padding = 1 * MM;
+  const top = y + CARD_H;
+  const titleX = x + padding;
+  const titleMax = LEFT_PANEL_W - 2 * padding;
   const titleSize = fitTitleSize(unit.name, titleMax);
-  canvas.text(titleX, top - 15.2, unit.name, titleSize, "F1");
+  canvas.text(titleX, top - 4.05 * MM, unit.name, titleSize, "F1");
 
-  let subtitle = unit.company;
-  if (unit.points !== null && unit.points !== undefined) subtitle += ` · ${clean(unit.points)} PTS`;
-  const subtitleSize = fitSize(subtitle, titleMax, 4.7, 3.5, true);
-  canvas.text(titleX, top - 25.4, subtitle.toUpperCase(), subtitleSize, "F3", 0.28);
-
-  const statHeight = 15.5;
-  const statY = top - titleMargin - bandHeight - 1 - statHeight;
-  const statX = x + 3.5;
-  const statWidth = (DESIGN_CARD_W - 7) / 5;
+  const statHeight = 6.2 * MM;
+  const statY = y + 7.3 * MM;
+  const statX = x + padding;
+  const statAreaWidth = LEFT_PANEL_W - 2 * padding;
+  const statWidth = statAreaWidth / 6;
   const statItems = [
     ["RES", unit.resolve], ["MOV", unit.move], ["MEL", unit.melee],
-    ["SHT", `${clean(unit.short)}/${clean(unit.long)}`], ["DEF", unit.defence],
+    ["SHT", `${clean(unit.short)}/${clean(unit.long)}`], ["DEF", unit.defence], ["BAS", unit.bases],
   ];
-  canvas.rect(statX, statY, DESIGN_CARD_W - 7, statHeight, 0.6, 0.975, 0.28, 1);
+  canvas.rect(statX, statY, statAreaWidth, statHeight, 0.6, 0.975, 0.28, 0.7);
   statItems.forEach(([label, value], index) => {
     const statCellX = statX + index * statWidth;
     if (index) canvas.line(statCellX, statY, statCellX, statY + statHeight, 0.22, 0.68);
-    canvas.text(statCellX + statWidth / 2, statY + 10.1, label, 3.5, "F3", 0.34, "center");
+    canvas.text(statCellX + statWidth / 2, statY + 3.65 * MM, label, 2.8, "F3", 0.34, "center");
     const display = clean(value) || "-";
-    const valueSize = fitSize(display, statWidth - 3, 6.5, 4.3, true);
-    canvas.text(statCellX + statWidth / 2, statY + 2.9, display, valueSize, "F1", 0, "center");
+    const valueSize = fitSize(display, statWidth - 1.2 * MM, 5.2, 3.2, true);
+    canvas.text(statCellX + statWidth / 2, statY + 0.95 * MM, display, valueSize, "F1", 0, "center");
   });
 
   const abilities = displayedCardAbilities(unit);
-  const areaX = x + 3.5;
-  const areaY = y + 3.5;
-  const areaWidth = DESIGN_CARD_W - 7;
-  const areaHeight = statY - 2 - areaY;
+  const areaX = x + padding;
+  const areaY = y + padding;
+  const areaWidth = LEFT_PANEL_W - 2 * padding;
+  const areaHeight = statY - 1.2 * MM - areaY;
   if (!abilities.length) {
-    canvas.text(x + DESIGN_CARD_W / 2, areaY + areaHeight / 2 - 1.6, "NO TRAITS", 4.6, "F3", 0.48, "center");
+    canvas.text(x + LEFT_PANEL_W / 2, areaY + areaHeight / 2 - 1.3, "NO TRAITS", 3.7, "F3", 0.48, "center");
     return;
   }
 
-  const gap = 2;
-  const columns = abilities.length >= 4 ? 2 : 1;
+  const gap = 0.6 * MM;
+  const columns = abilities.length >= 3 ? 2 : 1;
   const rows = Math.ceil(abilities.length / columns);
-  const preferredSize = abilities.length >= 4 ? 5.4 : abilities.length <= 2 ? 6.8 : 5.8;
+  const preferredSize = abilities.length >= 4 ? 3.4 : abilities.length <= 2 ? 4.3 : 3.8;
   const cellWidth = (areaWidth - gap * (columns - 1)) / columns;
   const cellHeight = (areaHeight - gap * (rows - 1)) / rows;
   abilities.forEach((ability, index) => {
@@ -299,21 +252,15 @@ function drawCardContent(canvas, unit, x, y) {
     const rowFromTop = Math.floor(index / columns);
     const cellX = areaX + column * (cellWidth + gap);
     const cellY = areaY + (rows - 1 - rowFromTop) * (cellHeight + gap);
-    canvas.rect(cellX, cellY, cellWidth, cellHeight, 0.68, 0.975, 0.25, 1.2);
-    const fitted = fitTextBlock(ability.name, cellWidth - 7, preferredSize, 3.7, "F3");
-    const lineHeight = fitted.size * 1.18;
-    const centerY = cellY + cellHeight / 2 - fitted.size * 0.34;
-    fitted.lines.forEach((line, lineIndex) => {
-      const lineY = centerY + ((fitted.lines.length - 1) / 2 - lineIndex) * lineHeight;
-      canvas.text(cellX + cellWidth / 2, lineY, line, fitted.size, "F3", 0, "center");
-    });
+    canvas.rect(cellX, cellY, cellWidth, cellHeight, 0.68, 0.975, 0.2, 0.6);
+    const abilitySize = fitSize(ability.name, cellWidth - 1.4 * MM, preferredSize, 1.8, true);
+    canvas.text(cellX + cellWidth / 2, cellY + cellHeight / 2 - abilitySize * 0.34,
+      ability.name, abilitySize, "F3", 0, "center");
   });
 }
 
 function drawCard(canvas, unit, x, y) {
-  canvas.add(`q ${CARD_SCALE.toFixed(6)} 0 0 ${CARD_SCALE.toFixed(6)} ${x.toFixed(3)} ${y.toFixed(3)} cm`);
-  drawCardContent(canvas, unit, 0, 0);
-  canvas.add("Q");
+  drawCardContent(canvas, unit, x, y);
 }
 
 function buildPdfPages(units) {

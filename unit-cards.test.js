@@ -87,9 +87,12 @@ test("unit-card PDF is valid, paginated, and contains roster text", async () => 
   assert.ok(text.startsWith("%PDF-1.4"));
   assert.match(text, /\/Count 1\b/);
   assert.match(text, /\/ViewerPreferences << \/PrintScaling \/None >>/);
-  assert.deepEqual(UNIT_CARD_SIZE, { width: 68, height: 47.91, unit: "mm" });
-  assert.equal(CARDS_PER_PAGE, 16);
+  assert.deepEqual(UNIT_CARD_SIZE, { width: 60, height: 20, unit: "mm" });
+  assert.equal(CARDS_PER_PAGE, 36);
   assert.ok(text.includes("(Guard \\(North\\))"));
+  assert.match(text, /\(BAS\).*?\(3\)/s, "base count is included with the left-side stats");
+  assert.ok(text.includes("(Fast)") && text.includes("(Doughty)"), "traits are included in the left panel");
+  assert.match(text, /56\.69 56\.69 re/, "the right-hand box is exactly 20 mm square");
   const crossReferenceOffset = Number(text.match(/startxref\n(\d+)/)?.[1]);
   assert.equal(text.slice(crossReferenceOffset, crossReferenceOffset + 4), "xref");
   const offsets = text.match(/\d{10} 00000 n/g)?.map((entry) => Number(entry.slice(0, 10))) ?? [];
