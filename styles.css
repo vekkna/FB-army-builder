@@ -253,6 +253,27 @@ p {
   background: rgb(194 81 57 / 20%);
 }
 
+#library-button {
+  position: relative;
+}
+
+.library-unsaved-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: none;
+  width: 8px;
+  height: 8px;
+  background: #e4a52f;
+  border: 1.5px solid var(--forest-900);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 22%);
+}
+
+#library-button.has-unsaved-changes .library-unsaved-dot {
+  display: block;
+}
+
 .army-bar {
   position: sticky;
   top: var(--header-height);

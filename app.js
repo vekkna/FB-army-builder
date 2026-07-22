@@ -116,6 +116,7 @@ const elements = {
   spellResultsCount: byId("spell-results-count"),
   toast: byId("toast"),
   importFile: byId("import-file"),
+  libraryButton: byId("library-button"),
   unitCardsButton: byId("unit-cards-button"),
   rulesButton: byId("rules-button"),
   libraryDialog: byId("library-dialog"),
@@ -563,6 +564,31 @@ function renderHeader(army) {
   } else {
     elements.statusLabel.textContent = "Army legal";
   }
+  renderLibrarySaveStatus();
+}
+
+function currentArmyHasWork() {
+  return Boolean(
+    state.units.length
+    || state.strategies.length
+    || state.armyName.trim()
+    || state.pointsLimit !== defaultState().pointsLimit
+  );
+}
+
+function hasUnsavedLibraryChanges() {
+  const activeEntry = library.find(({ id }) => id === activeLibraryId);
+  return activeEntry ? libraryEntryIsDirty(activeEntry) : currentArmyHasWork();
+}
+
+function renderLibrarySaveStatus() {
+  const unsaved = hasUnsavedLibraryChanges();
+  const description = unsaved
+    ? "Save/Load — changes not saved to library"
+    : "Save or load armies";
+  elements.libraryButton.classList.toggle("has-unsaved-changes", unsaved);
+  elements.libraryButton.title = description;
+  elements.libraryButton.setAttribute("aria-label", description);
 }
 
 function renderStrategies() {
@@ -1283,6 +1309,7 @@ async function importArmy(file) {
 elements.armyName.addEventListener("input", () => {
   state.armyName = elements.armyName.value.slice(0, 80);
   persist();
+  renderLibrarySaveStatus();
 });
 
 elements.pointsLimit.addEventListener("change", () => {

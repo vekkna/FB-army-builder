@@ -36,6 +36,7 @@ try {
   }
   const cardsDisabledWhenEmpty = document.querySelector('#unit-cards-button').disabled;
   const rulesDisabledWhenEmpty = document.querySelector('#rules-button').disabled;
+  const saveLoadInitiallyClean = !document.querySelector('#library-button').classList.contains('has-unsaved-changes');
 
   click('[data-profile="Formed company"]');
   input('#unit-name', 'The Iron Guard', 'input');
@@ -80,6 +81,7 @@ try {
     clientX: secondBounds.left + 2, clientY: secondBounds.bottom - 1,
   }));
   const orderAfterDrag = globalThis.__FB_MUSTER__.getState().units.map((unit) => unit.name);
+  const saveLoadUnsavedBeforeFirstSave = document.querySelector('#library-button').classList.contains('has-unsaved-changes');
 
   const army = globalThis.__FB_MUSTER__.calculateArmy();
   const cardData = globalThis.__FB_MUSTER__.buildUnitCardData();
@@ -112,6 +114,7 @@ try {
   );
   input('#library-save-name', 'Smoke Army', 'input');
   click('#library-save-button');
+  const saveLoadCleanAfterFirstSave = !document.querySelector('#library-button').classList.contains('has-unsaved-changes');
   const savedEntry = globalThis.__FB_MUSTER__.getLibrary()[0];
   document.querySelector(`[data-library-id="${savedEntry.id}"] [data-library-action="duplicate"]`).click();
   const duplicateEntry = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id !== savedEntry.id);
@@ -123,10 +126,14 @@ try {
 
   const savedLimitBeforeWorkspaceEdit = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id === savedEntry.id).army.pointsLimit;
   input('#points-limit', '1200', 'change');
+  const saveLoadUnsavedAfterEdit = document.querySelector('#library-button').classList.contains('has-unsaved-changes');
+  const saveLoadUnsavedDotVisible = getComputedStyle(document.querySelector('.library-unsaved-dot')).display !== 'none';
+  const saveLoadUnsavedLabel = document.querySelector('#library-button').getAttribute('aria-label');
   const savedLimitAfterWorkspaceEdit = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id === savedEntry.id).army.pointsLimit;
   click('#library-button');
   const unsavedLibraryStatus = document.querySelector('#library-save-status').textContent;
   click('#library-save-button');
+  const saveLoadCleanAfterExplicitSave = !document.querySelector('#library-button').classList.contains('has-unsaved-changes');
   const savedLimitAfterExplicitSave = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id === savedEntry.id).army.pointsLimit;
   let downloadedLibraryFile = '';
   HTMLAnchorElement.prototype.click = function () { downloadedLibraryFile = this.download; };
@@ -211,6 +218,13 @@ try {
     libraryBounds: { left: libraryBounds.left, top: libraryBounds.top, bottom: libraryBounds.bottom, width: libraryBounds.width, height: libraryBounds.height },
     libraryActionHeights,
     restoredLibraryCount,
+    saveLoadInitiallyClean,
+    saveLoadUnsavedBeforeFirstSave,
+    saveLoadCleanAfterFirstSave,
+    saveLoadUnsavedAfterEdit,
+    saveLoadUnsavedDotVisible,
+    saveLoadUnsavedLabel,
+    saveLoadCleanAfterExplicitSave,
   };
 })()
 '@
@@ -267,12 +281,14 @@ try {
   if ($result.blinkTooltip -notlike "*Roll needed: 5+ (errata)*") { throw "Expected the Blink errata in its tooltip." }
   if ($result.cardSpellNames -notcontains "Bless L3" -or $result.cardSpellNames -notcontains "Bless L1") { throw "Expected both Bless selections in unit-card data." }
   if (-not $result.dragReordered -or $result.dragHandles -ne 2 -or $result.directionButtons -ne 0) { throw "Expected drag handles to reorder units without Up/Down buttons." }
-  if ($result.libraryWarning -notlike "*Browser storage is not a backup*" -or $result.libraryWarning -notlike "*Export a JSON backup*") { throw "Expected a clear browser-storage loss warning in the army library." }
+  if ($result.libraryWarning -notlike "*Clearing this site's data*" -or $result.libraryWarning -notlike "*Export a JSON backup*") { throw "Expected a clear browser-storage loss warning in the army library." }
   if ($result.libraryNames.Count -ne 2 -or $result.libraryNames -notcontains "Smoke Army" -or $result.libraryNames -notcontains "Tournament Variant") { throw "Expected saved, duplicated, and renamed library armies." }
   if (-not $result.libraryModifiedTimesPresent -or $result.downloadedLibraryFile -ne "fantastic-battles-army-library.json") { throw "Expected last-modified dates and an export-all JSON backup." }
   if ($result.savedLimitBeforeWorkspaceEdit -ne 1000 -or $result.savedLimitAfterWorkspaceEdit -ne 1000 -or $result.savedLimitAfterExplicitSave -ne 1200 -or $result.unsavedLibraryStatus -notlike "*Unsaved changes*") { throw "Expected library snapshots to change only after an explicit save." }
   if (-not $result.libraryMobileLayout -or -not $result.libraryTouchTargets) { throw "Expected a bottom-anchored library with touch-friendly controls on mobile (viewport $($result.libraryViewport.width)x$($result.libraryViewport.height); dialog $($result.libraryBounds.left),$($result.libraryBounds.top),$($result.libraryBounds.width)x$($result.libraryBounds.height); action heights $($result.libraryActionHeights -join ','))." }
   if ($result.restoredLibraryCount -ne 4) { throw "Expected an exported whole-library JSON backup to import its armies again." }
+  if (-not $result.saveLoadInitiallyClean -or -not $result.saveLoadUnsavedBeforeFirstSave -or -not $result.saveLoadCleanAfterFirstSave -or -not $result.saveLoadUnsavedAfterEdit -or -not $result.saveLoadUnsavedDotVisible -or -not $result.saveLoadCleanAfterExplicitSave) { throw "Expected the Save/Load indicator to track unsaved library changes." }
+  if ($result.saveLoadUnsavedLabel -notlike "Save/Load*changes not saved to library") { throw "Expected the unsaved Save/Load state to have a clear accessible label." }
 
   $result | ConvertTo-Json -Compress
 }
