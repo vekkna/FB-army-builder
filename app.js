@@ -1205,14 +1205,6 @@ function importArmyLibrary(parsed) {
   showToast(`${plural(imported.length, "army", "armies")} added to the library.`);
 }
 
-function downloadArmy() {
-  downloadJSON(
-    armyExportPayload(state, storedDeployment()),
-    `${slugify(state.armyName)}.json`,
-  );
-  showToast("Army exported to a file.");
-}
-
 function downloadUnitCards() {
   if (!state.units.length) {
     showToast("Add a unit before creating cards.");
@@ -1429,8 +1421,6 @@ elements.spellDialog.addEventListener("click", (event) => {
   if (event.target === elements.spellDialog) elements.spellDialog.close();
 });
 
-byId("export-button").addEventListener("click", downloadArmy);
-byId("import-button").addEventListener("click", () => elements.importFile.click());
 byId("library-button").addEventListener("click", openLibrary);
 elements.importFile.addEventListener("change", () => {
   const [file] = elements.importFile.files;
