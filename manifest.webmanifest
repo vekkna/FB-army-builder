@@ -1,0 +1,32 @@
+{
+  "name": "Fantastic Battles Muster",
+  "short_name": "FB Muster",
+  "description": "Build an army, carry interactive unit cards, and track Resolve at the table.",
+  "id": "./battle.html",
+  "start_url": "./battle.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e8dfcb",
+  "theme_color": "#18231f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Battle cards",
+      "short_name": "Battle",
+      "url": "./battle.html"
+    },
+    {
+      "name": "Army builder",
+      "short_name": "Muster",
+      "url": "./index.html"
+    }
+  ]
+}

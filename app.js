@@ -42,6 +42,7 @@ import {
   createRulesPdf,
   rulesPdfFileName,
 } from "./rules-pdf.js";
+import { encodeArmyPayload } from "./battle-state.js";
 
 const STORAGE_KEY = "fantastic-battles-muster:v1";
 const LIBRARY_STORAGE_KEY = "fantastic-battles-muster:library:v1";
@@ -119,6 +120,7 @@ const elements = {
   libraryButton: byId("library-button"),
   unitCardsButton: byId("unit-cards-button"),
   rulesButton: byId("rules-button"),
+  battleButton: byId("battle-button"),
   libraryDialog: byId("library-dialog"),
   librarySaveName: byId("library-save-name"),
   librarySaveStatus: byId("library-save-status"),
@@ -635,6 +637,8 @@ function renderRoster(army) {
   elements.unitCardsButton.title = "Print and cut out unit cards for the battlefield.";
   elements.rulesButton.disabled = ruleCount === 0;
   elements.rulesButton.title = "Print the rules your army uses.";
+  elements.battleButton.disabled = count === 0;
+  elements.battleButton.title = "Open interactive unit cards and track Resolve.";
   elements.emptyRoster.hidden = count > 0;
   elements.rosterFooter.hidden = count === 0;
   elements.unitCount.textContent = plural(count, "unit");
@@ -1282,6 +1286,31 @@ function downloadRulesReference() {
   }
 }
 
+async function openBattleCards() {
+  if (!state.units.length) {
+    showToast("Add a unit before opening battle cards.");
+    return;
+  }
+  const invalidUnit = state.units.find((unit) => validateUnit(unit).length > 0);
+  if (invalidUnit) {
+    showToast(`Fix ${invalidUnit.name.trim() || invalidUnit.profile || "the invalid unit"} before opening battle cards.`);
+    return;
+  }
+
+  elements.battleButton.disabled = true;
+  elements.battleButton.setAttribute("aria-busy", "true");
+  try {
+    const payload = await encodeArmyPayload(state);
+    const url = new URL("battle.html", window.location.href);
+    url.hash = `army=${payload}`;
+    window.location.assign(url.href);
+  } catch {
+    showToast("The battle-card link could not be created.");
+    elements.battleButton.disabled = false;
+    elements.battleButton.removeAttribute("aria-busy");
+  }
+}
+
 async function importArmy(file) {
   try {
     const parsed = JSON.parse(await file.text());
@@ -1484,6 +1513,7 @@ elements.libraryList.addEventListener("submit", (event) => {
 byId("print-button").addEventListener("click", () => window.print());
 elements.unitCardsButton.addEventListener("click", downloadUnitCards);
 elements.rulesButton.addEventListener("click", downloadRulesReference);
+elements.battleButton.addEventListener("click", openBattleCards);
 byId("new-button").addEventListener("click", () => {
   const hasWork = state.units.length
     || state.strategies.length
@@ -1504,6 +1534,12 @@ byId("mobile-start-button").addEventListener("click", () => {
 
 renderAll();
 
+if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
+  navigator.serviceWorker.register("./service-worker.js").catch(() => {
+    // The app remains fully usable online if offline caching is unavailable.
+  });
+}
+
 // A small read-only hook makes browser smoke tests and debugging straightforward.
 globalThis.__FB_MUSTER__ = Object.freeze({
   getState: () => structuredClone(state),
@@ -1515,4 +1551,5 @@ globalThis.__FB_MUSTER__ = Object.freeze({
   createUnitCardsPdf: () => createUnitCardsPdf(buildUnitCardData(state.units)),
   buildArmyRules: () => buildArmyRules(state),
   createRulesPdf: () => createRulesPdf(buildArmyRules(state)),
+  createBattlePayload: () => encodeArmyPayload(state),
 });

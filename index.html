@@ -7,7 +7,10 @@
     <meta name="theme-color" content="#18231f">
     <meta name="description"
       content="A fast, local-first army builder for Fantastic Battles, based on the supplied spreadsheet.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Fantastic Battles Muster</title>
+    <link rel="icon" href="app-icon.svg" type="image/svg+xml">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles.css">
   </head>
 
@@ -34,6 +37,11 @@
         </button>
         <button class="icon-button" id="rules-button" type="button" title="Print the rules your army uses." disabled>
           <span aria-hidden="true">&#167;</span><span class="button-label">Rules</span>
+        </button>
+        <button class="icon-button" id="battle-button" type="button"
+          title="Open interactive unit cards and track Resolve."
+          aria-label="Open interactive unit cards and track Resolve" disabled>
+          <span aria-hidden="true">&#9876;</span><span class="button-label">Battle</span>
         </button>
         <a class="icon-button" id="deployment-button" href="deployment.html" title="Plan your army's deployment.">
           <span aria-hidden="true">&#9638;</span><span class="button-label">Deploy</span>

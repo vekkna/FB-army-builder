@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#18231f">
+    <meta name="description" content="Interactive unit cards and Resolve tracking for a Fantastic Battles army.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Battle Cards · Fantastic Battles Muster</title>
+    <link rel="icon" href="app-icon.svg" type="image/svg+xml">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="battle.css">
+  </head>
+
+  <body class="battle-page">
+    <a class="skip-link" href="#battle-cards">Skip to unit cards</a>
+    <header class="battle-header">
+      <a class="battle-header-action back-to-muster" href="index.html" aria-label="Return to the army builder">
+        <span aria-hidden="true">←</span>
+        <span>Back to muster</span>
+      </a>
+      <div class="battle-brand">
+        <p class="eyebrow">Fantastic Battles</p>
+        <h1>Battle Cards</h1>
+      </div>
+      <div class="battle-header-actions">
+        <button class="battle-header-action" id="share-battle" type="button"
+          aria-label="Send battle cards to a phone" title="Send battle cards to a phone" disabled>
+          <span aria-hidden="true">↗</span><span>Send to phone</span>
+        </button>
+        <button class="battle-header-action" id="reset-battle" type="button"
+          aria-label="Reset every unit to full Resolve" title="Reset every unit to full Resolve" disabled>
+          <span aria-hidden="true">↻</span><span>Reset Resolve</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="battle-main">
+      <section class="battle-overview" aria-labelledby="battle-army-name">
+        <div>
+          <h2 id="battle-army-name">Untitled army</h2>
+          <p id="battle-guidance">Resolve changes are saved on this device as you play.</p>
+        </div>
+        <div class="battle-totals" aria-label="Army summary">
+          <div><strong id="battle-unit-count">0</strong><span>units</span></div>
+          <div><strong id="battle-points">0</strong><span>points</span></div>
+          <div><strong id="battle-break-point">—</strong><span>break point</span></div>
+        </div>
+      </section>
+
+      <section class="battle-strategies" id="battle-strategies-panel" aria-labelledby="battle-strategies-title" hidden>
+        <div class="battle-section-heading">
+          <div>
+            <p class="step-label">Army-wide rules</p>
+            <h2 id="battle-strategies-title">Strategies</h2>
+          </div>
+          <span>Tap to read a rule</span>
+        </div>
+        <div class="battle-rule-row" id="battle-strategies"></div>
+      </section>
+
+      <section class="battle-empty" id="battle-empty" hidden>
+        <span aria-hidden="true">♜</span>
+        <h2>No army is loaded</h2>
+        <p>Return to the muster, add some units, then choose <strong>Battle</strong> again.</p>
+        <a href="index.html">Return to the army builder</a>
+      </section>
+
+      <section class="battle-card-grid" id="battle-cards" aria-label="Interactive unit cards"></section>
+    </main>
+
+    <dialog class="battle-dialog rule-dialog" id="rule-dialog" aria-labelledby="rule-dialog-title">
+      <div class="battle-dialog-shell">
+        <header class="battle-dialog-header">
+          <div>
+            <p class="step-label" id="rule-dialog-kind">Rule</p>
+            <h2 id="rule-dialog-title">Rule name</h2>
+          </div>
+          <button class="battle-dialog-close" id="rule-dialog-close" type="button" aria-label="Close rule">×</button>
+        </header>
+        <p class="rule-dialog-meta" id="rule-dialog-meta" hidden></p>
+        <div class="rule-dialog-copy" id="rule-dialog-copy"></div>
+      </div>
+    </dialog>
+
+    <dialog class="battle-dialog share-dialog" id="share-dialog" aria-labelledby="share-dialog-title">
+      <div class="battle-dialog-shell share-dialog-shell">
+        <header class="battle-dialog-header">
+          <div>
+            <p class="step-label">Computer to phone</p>
+            <h2 id="share-dialog-title">Send these cards</h2>
+          </div>
+          <button class="battle-dialog-close" id="share-dialog-close" type="button" aria-label="Close sharing">×</button>
+        </header>
+        <div class="share-layout">
+          <div class="share-qr-wrap" id="share-qr-wrap">
+            <div id="share-qr" aria-label="QR code for these battle cards"></div>
+            <p>Scan with your phone camera</p>
+          </div>
+          <div class="share-copy">
+            <p>Open this self-contained link on the device you will use at the table. The roster is carried inside the
+              link; current Resolve is not.</p>
+            <label for="share-link">Battle-card link</label>
+            <input id="share-link" type="url" readonly>
+            <div class="share-actions">
+              <button class="secondary-button" id="native-share" type="button" hidden>Share…</button>
+              <button class="primary-button" id="copy-share-link" type="button">Copy link</button>
+            </div>
+            <p class="share-privacy"><span aria-hidden="true">◆</span> The army data stays in the URL fragment and is
+              not uploaded to the host. After opening it once, use <strong>Add to Home Screen</strong> for quick,
+              offline access.</p>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="toast" id="battle-toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script type="module" src="battle.js"></script>
+  </body>
+
+</html>

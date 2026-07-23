@@ -3,7 +3,9 @@ param(
 )
 
 $pages = Invoke-RestMethod -Uri "http://127.0.0.1:$DebugPort/json"
-$page = $pages | Where-Object { $_.type -eq "page" -and $_.url -like "http://127.0.0.1:8765*" } | Select-Object -First 1
+$page = $pages | Where-Object {
+  $_.type -eq "page" -and $_.url -in @("http://127.0.0.1:8765/", "http://127.0.0.1:8765/index.html")
+} | Select-Object -First 1
 if (-not $page) {
   throw "Fantastic Battles Muster page was not found on Chrome debugging port $DebugPort."
 }
@@ -28,6 +30,10 @@ try {
   };
 
   const existing = globalThis.__FB_MUSTER__.getState();
+  const libraryCountAtStart = globalThis.__FB_MUSTER__.getLibrary().length;
+  const smokeSuffix = String(Date.now());
+  const smokeLibraryName = `Smoke Army ${smokeSuffix}`;
+  const smokeVariantName = `Tournament Variant ${smokeSuffix}`;
   if (existing.units.length || existing.strategies.length || existing.armyName || existing.pointsLimit !== 1000) {
     const confirm = window.confirm;
     window.confirm = () => true;
@@ -36,6 +42,7 @@ try {
   }
   const cardsDisabledWhenEmpty = document.querySelector('#unit-cards-button').disabled;
   const rulesDisabledWhenEmpty = document.querySelector('#rules-button').disabled;
+  const battleDisabledWhenEmpty = document.querySelector('#battle-button').disabled;
   const saveLoadInitiallyClean = !document.querySelector('#library-button').classList.contains('has-unsaved-changes');
 
   click('[data-profile="Formed company"]');
@@ -88,6 +95,7 @@ try {
   const cardPdf = globalThis.__FB_MUSTER__.createUnitCardsPdf();
   const rulesData = globalThis.__FB_MUSTER__.buildArmyRules();
   const rulesPdf = globalThis.__FB_MUSTER__.createRulesPdf();
+  const battlePayload = await globalThis.__FB_MUSTER__.createBattlePayload();
   let downloadedCardFile = '';
   let downloadedRulesFile = '';
   const originalAnchorClick = HTMLAnchorElement.prototype.click;
@@ -112,15 +120,16 @@ try {
     && Math.abs(libraryBounds.bottom - innerHeight) < 1
     && libraryBounds.top > 0
   );
-  input('#library-save-name', 'Smoke Army', 'input');
+  input('#library-save-name', smokeLibraryName, 'input');
   click('#library-save-button');
   const saveLoadCleanAfterFirstSave = !document.querySelector('#library-button').classList.contains('has-unsaved-changes');
-  const savedEntry = globalThis.__FB_MUSTER__.getLibrary()[0];
+  const savedEntry = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.name === smokeLibraryName);
+  const idsBeforeDuplicate = new Set(globalThis.__FB_MUSTER__.getLibrary().map((entry) => entry.id));
   document.querySelector(`[data-library-id="${savedEntry.id}"] [data-library-action="duplicate"]`).click();
-  const duplicateEntry = globalThis.__FB_MUSTER__.getLibrary().find((entry) => entry.id !== savedEntry.id);
+  const duplicateEntry = globalThis.__FB_MUSTER__.getLibrary().find((entry) => !idsBeforeDuplicate.has(entry.id));
   document.querySelector(`[data-library-id="${duplicateEntry.id}"] [data-library-action="rename"]`).click();
   const renameForm = document.querySelector(`[data-library-id="${duplicateEntry.id}"] [data-library-rename-form]`);
-  input(`[data-library-id="${duplicateEntry.id}"] [data-library-rename-input]`, 'Tournament Variant', 'input');
+  input(`[data-library-id="${duplicateEntry.id}"] [data-library-rename-input]`, smokeVariantName, 'input');
   renameForm.requestSubmit();
   click('#library-dialog-close');
 
@@ -157,7 +166,8 @@ try {
   const importInput = document.querySelector('#import-file');
   importInput.files = transfer.files;
   importInput.dispatchEvent(new Event('change', { bubbles: true }));
-  for (let attempt = 0; attempt < 20 && globalThis.__FB_MUSTER__.getLibrary().length < 4; attempt += 1) {
+  const expectedRestoredLibraryCount = Math.min(100, libraryNames.length * 2);
+  for (let attempt = 0; attempt < 20 && globalThis.__FB_MUSTER__.getLibrary().length < expectedRestoredLibraryCount; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   const restoredLibraryCount = globalThis.__FB_MUSTER__.getLibrary().length;
@@ -174,8 +184,11 @@ try {
     hasPerBaseLabel: document.body.textContent.includes('/ base'),
     cardsDisabledWhenEmpty,
     rulesDisabledWhenEmpty,
+    battleDisabledWhenEmpty,
     cardsButtonEnabled: !document.querySelector('#unit-cards-button').disabled,
     rulesButtonEnabled: !document.querySelector('#rules-button').disabled,
+    battleButtonEnabled: !document.querySelector('#battle-button').disabled,
+    battlePayload,
     cardCount: cardData.length,
     cardPdfType: cardPdf.type,
     cardPdfSize: cardPdf.size,
@@ -189,9 +202,12 @@ try {
     actionTooltips: {
       cards: document.querySelector('#unit-cards-button').title,
       rules: document.querySelector('#rules-button').title,
+      battle: document.querySelector('#battle-button').title,
       deploy: document.querySelector('#deployment-button').title,
     },
-    rulesBetweenCardsAndDeploy: document.querySelector('#unit-cards-button').nextElementSibling?.id === 'rules-button' && document.querySelector('#rules-button').nextElementSibling?.id === 'deployment-button',
+    battleActionOrder: document.querySelector('#unit-cards-button').nextElementSibling?.id === 'rules-button'
+      && document.querySelector('#rules-button').nextElementSibling?.id === 'battle-button'
+      && document.querySelector('#battle-button').nextElementSibling?.id === 'deployment-button',
     spells: globalThis.__FB_MUSTER__.getState().units.flatMap((unit) => unit.spells || []),
     spellChips: Array.from(document.querySelectorAll('.upgrade-chip.is-spell')).map((chip) => chip.textContent.trim()),
     hasBlessLevelThreeChip: Array.from(document.querySelectorAll('.upgrade-chip.is-spell')).some((chip) => chip.textContent.includes('Bless L3')),
@@ -206,6 +222,10 @@ try {
     directionButtons: document.querySelectorAll('[data-action="up"], [data-action="down"]').length,
     libraryWarning,
     libraryNames,
+    libraryCountAtStart,
+    smokeLibraryName,
+    smokeVariantName,
+    expectedRestoredLibraryCount,
     libraryModifiedTimesPresent,
     downloadedLibraryFile,
     savedLimitBeforeWorkspaceEdit,
@@ -267,13 +287,14 @@ try {
   if ($result.hasPerBaseLabel) { throw "Expected points labels to omit '/ base'." }
   if (-not $result.cardsDisabledWhenEmpty -or -not $result.cardsButtonEnabled) { throw "Expected Cards to be disabled for an empty roster and enabled after adding units." }
   if (-not $result.rulesDisabledWhenEmpty -or -not $result.rulesButtonEnabled) { throw "Expected Rules to be disabled with no selected rules and enabled after building the army." }
+  if (-not $result.battleDisabledWhenEmpty -or -not $result.battleButtonEnabled -or $result.battlePayload -notmatch "^fb1\.(gz|raw)\.") { throw "Expected Battle to enable for a roster and create a versioned phone payload." }
   if ($result.cardCount -ne 2 -or $result.cardPdfType -ne "application/pdf" -or $result.cardPdfSize -lt 1000) { throw "Expected two generated cards in a non-empty PDF." }
   if ($result.downloadedCardFile -ne "fantastic-battles-army-unit-cards.pdf") { throw "Expected the Cards action to download the army-named PDF." }
   if ($result.rulesCount -ne 4 -or $result.rulesPdfType -ne "application/pdf" -or $result.rulesPdfSize -lt 1000) { throw "Expected four unique selected rules in a non-empty PDF." }
   if ($result.downloadedRulesFile -ne "fantastic-battles-army-rules-reference.pdf") { throw "Expected the Rules action to download the army-named PDF." }
   if ($result.strategyTooltip -like "*Add Agent*" -or $result.strategyTooltip -notlike "*Sowing discord*") { throw "Expected strategy tooltips to contain descriptions without add prompts." }
-  if (-not $result.headerTooltipsPresent -or -not $result.rulesBetweenCardsAndDeploy) { throw "Expected descriptive header tooltips and Rules between Cards and Deploy." }
-  if ($result.actionTooltips.cards -ne "Print and cut out unit cards for the battlefield." -or $result.actionTooltips.rules -ne "Print the rules your army uses." -or $result.actionTooltips.deploy -ne "Plan your army's deployment.") { throw "Expected the requested Cards, Rules, and Deploy tooltips." }
+  if (-not $result.headerTooltipsPresent -or -not $result.battleActionOrder) { throw "Expected descriptive header tooltips and Cards, Rules, Battle, Deploy ordering." }
+  if ($result.actionTooltips.cards -ne "Print and cut out unit cards for the battlefield." -or $result.actionTooltips.rules -ne "Print the rules your army uses." -or $result.actionTooltips.battle -ne "Open interactive unit cards and track Resolve." -or $result.actionTooltips.deploy -ne "Plan your army's deployment.") { throw "Expected the requested Cards, Rules, Battle, and Deploy tooltips." }
   if ($result.spells.Count -ne 2 -or $result.spells[0].name -ne "Bless" -or $result.spells[0].level -ne 3 -or $result.spells[1].name -ne "Bless" -or $result.spells[1].level -ne 1) { throw "Expected Bless at levels 3 and 1 on the Tome-bearing Mage-lord." }
   if (-not $result.hasBlessLevelThreeChip -or -not $result.hasBlessLevelOneChip) { throw "Expected both Bless selections in the roster." }
   if ($result.tomeSpellCapacity -ne "4 / 4 levels" -or $result.tomeTooltip -notlike "*additional spell level*") { throw "Expected Mystical Tome to visibly grant a fourth spell level." }
@@ -282,11 +303,11 @@ try {
   if ($result.cardSpellNames -notcontains "Bless L3" -or $result.cardSpellNames -notcontains "Bless L1") { throw "Expected both Bless selections in unit-card data." }
   if (-not $result.dragReordered -or $result.dragHandles -ne 2 -or $result.directionButtons -ne 0) { throw "Expected drag handles to reorder units without Up/Down buttons." }
   if ($result.libraryWarning -notlike "*Clearing this site's data*" -or $result.libraryWarning -notlike "*Export a JSON backup*") { throw "Expected a clear browser-storage loss warning in the army library." }
-  if ($result.libraryNames.Count -ne 2 -or $result.libraryNames -notcontains "Smoke Army" -or $result.libraryNames -notcontains "Tournament Variant") { throw "Expected saved, duplicated, and renamed library armies." }
+  if ($result.libraryNames.Count -ne ($result.libraryCountAtStart + 2) -or $result.libraryNames -notcontains $result.smokeLibraryName -or $result.libraryNames -notcontains $result.smokeVariantName) { throw "Expected saved, duplicated, and renamed library armies." }
   if (-not $result.libraryModifiedTimesPresent -or $result.downloadedLibraryFile -ne "fantastic-battles-army-library.json") { throw "Expected last-modified dates and an export-all JSON backup." }
   if ($result.savedLimitBeforeWorkspaceEdit -ne 1000 -or $result.savedLimitAfterWorkspaceEdit -ne 1000 -or $result.savedLimitAfterExplicitSave -ne 1200 -or $result.unsavedLibraryStatus -notlike "*Unsaved changes*") { throw "Expected library snapshots to change only after an explicit save." }
   if (-not $result.libraryMobileLayout -or -not $result.libraryTouchTargets) { throw "Expected a bottom-anchored library with touch-friendly controls on mobile (viewport $($result.libraryViewport.width)x$($result.libraryViewport.height); dialog $($result.libraryBounds.left),$($result.libraryBounds.top),$($result.libraryBounds.width)x$($result.libraryBounds.height); action heights $($result.libraryActionHeights -join ','))." }
-  if ($result.restoredLibraryCount -ne 4) { throw "Expected an exported whole-library JSON backup to import its armies again." }
+  if ($result.restoredLibraryCount -ne $result.expectedRestoredLibraryCount) { throw "Expected an exported whole-library JSON backup to import its armies again." }
   if (-not $result.saveLoadInitiallyClean -or -not $result.saveLoadUnsavedBeforeFirstSave -or -not $result.saveLoadCleanAfterFirstSave -or -not $result.saveLoadUnsavedAfterEdit -or -not $result.saveLoadUnsavedDotVisible -or -not $result.saveLoadCleanAfterExplicitSave) { throw "Expected the Save/Load indicator to track unsaved library changes." }
   if ($result.saveLoadUnsavedLabel -notlike "Save/Load*changes not saved to library") { throw "Expected the unsaved Save/Load state to have a clear accessible label." }
 

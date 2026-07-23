@@ -23,10 +23,25 @@ Then open <http://localhost:8000>. No install or build step is required.
 - Reordering, editing, duplicating, and removing units
 - Army-specific rules-reference PDFs containing the selected spells, traits, and strategies
 - One-click, print-ready unit-card PDFs (68 × 47.9 mm cards, four across on landscape A4)
+- Phone-friendly Battle Cards with persistent Resolve tracking, touch rule popups, and army-wide strategies
+- Self-contained phone links and locally generated QR codes; no account or army-sync server required
+- Offline caching and an app manifest for adding the Battle Cards page to a phone's home screen
 - A draggable 156 × 36 cm deployment planner with scale-correct bases and low-ink printing
 - Automatic working-copy recovery, a named browser army library, JSON backup/restore, and a print layout
 
 Named library armies are stored in this browser and change only when **Save changes** is selected. Clearing site data, using private browsing, or resetting the browser profile can erase browser storage, so the library includes per-army export and a restorable **Export all** JSON backup.
+
+## Use an army on a phone or tablet
+
+The simplest permanent home for this project is GitHub Pages because every file is static and there is no build step:
+
+1. In the GitHub repository, open **Settings → Pages**.
+2. Choose **Deploy from a branch**, then select **main** and **/(root)**.
+3. Open the published site on the computer and build the army.
+4. Choose **Battle**, then **Send to phone**. Scan the QR code or copy/share the link.
+5. Open the link once while online. The phone can then reopen the army and its rules offline; adding the page to the home screen makes it feel like a small app.
+
+The roster snapshot is compressed into the URL fragment, which browsers do not send to the web host. Anyone who receives the complete link can still read the roster, so treat the link like an exported army file. Current Resolve is deliberately excluded from shared links and is stored only in that device's browser.
 
 ## Deliberate repairs to legacy spreadsheet edge cases
 

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="92" fill="#18231f"/>
+  <path d="M256 48 432 112l-26 238-150 114-150-114-26-238z" fill="#b98535"/>
+  <path d="M256 76 402 129l-22 205-124 94-124-94-22-205z" fill="#f1dfb7"/>
+  <path d="M256 97 379 142l-19 181-104 79-104-79-19-181z" fill="#23362b"/>
+  <text x="256" y="294" fill="#f6e8c8" font-family="Georgia,serif" font-size="142" font-weight="700" text-anchor="middle">FB</text>
+</svg>

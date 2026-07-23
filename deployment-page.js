@@ -491,6 +491,12 @@ window.addEventListener("resize", () => {
 
 loadCurrentPlan(true);
 
+if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
+  navigator.serviceWorker.register("./service-worker.js").catch(() => {
+    // Deployment planning remains usable online when offline caching is unavailable.
+  });
+}
+
 globalThis.__FB_DEPLOYMENT__ = Object.freeze({
   getArmy: () => structuredClone(army),
   getPlan: () => structuredClone(plan),
