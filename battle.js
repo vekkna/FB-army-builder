@@ -94,6 +94,20 @@ function hashArmyPayload() {
   return parameters.get("army") || "";
 }
 
+async function updateMusterLinks() {
+  if (!army.units.length) return;
+  try {
+    const payload = hashArmyPayload() || await encodeArmyPayload(army);
+    const url = new URL("index.html", window.location.href);
+    url.hash = `army=${payload}`;
+    document.querySelectorAll("[data-muster-link]").forEach((link) => {
+      link.href = url.href;
+    });
+  } catch {
+    // The ordinary index link remains usable if a recovery payload cannot be made.
+  }
+}
+
 async function loadArmy() {
   const payload = hashArmyPayload();
   if (payload) {
@@ -495,6 +509,7 @@ async function initialise() {
   progressStorageKey = battleProgressKey(army);
   currentResolveByUnitId = loadResolveProgress();
   render();
+  await updateMusterLinks();
 
   const guidance = {
     shared: "Loaded from a self-contained battle-card link. Resolve changes are saved on this device.",

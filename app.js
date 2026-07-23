@@ -42,7 +42,10 @@ import {
   createRulesPdf,
   rulesPdfFileName,
 } from "./rules-pdf.js";
-import { encodeArmyPayload } from "./battle-state.js";
+import {
+  decodeArmyPayload,
+  encodeArmyPayload,
+} from "./battle-state.js";
 
 const STORAGE_KEY = "fantastic-battles-muster:v1";
 const LIBRARY_STORAGE_KEY = "fantastic-battles-muster:library:v1";
@@ -349,6 +352,55 @@ function replaceStoredDeployment(raw) {
   } catch {
     // Saving and loading the muster still works when storage is unavailable.
   }
+}
+
+function musterIdentity(raw) {
+  const normalised = sanitiseState(raw);
+  return JSON.stringify([
+    normalised.armyName,
+    normalised.pointsLimit,
+    normalised.strategies,
+    normalised.units.map(({ id: _id, ...unit }) => unit),
+  ]);
+}
+
+function musterHasWork(raw) {
+  const normalised = sanitiseState(raw);
+  return normalised.units.length > 0
+    || normalised.strategies.length > 0
+    || normalised.armyName.trim().length > 0
+    || normalised.pointsLimit !== defaultState().pointsLimit;
+}
+
+async function restoreSharedArmyFromHash() {
+  const parameters = new URLSearchParams(window.location.hash.slice(1));
+  const payload = parameters.get("army") || "";
+  if (!payload) return "none";
+
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.hash = "";
+  window.history.replaceState(null, "", cleanUrl.href);
+
+  const decoded = await decodeArmyPayload(payload);
+  if (!decoded) return "invalid";
+  const sharedState = sanitiseState(decoded);
+  if (musterIdentity(sharedState) === musterIdentity(state)) return "same";
+
+  if (musterHasWork(state)) {
+    const armyName = sharedState.armyName.trim() || "the shared army";
+    const replace = window.confirm(
+      `Open ${armyName} in the muster?\n\n`
+      + "This replaces the current working copy on this device. Armies saved in Save/Load are not changed.",
+    );
+    if (!replace) return "kept-current";
+  }
+
+  state = sharedState;
+  activeLibraryId = "";
+  persist();
+  persistLibrary();
+  replaceStoredDeployment();
+  return "imported";
 }
 
 function showToast(message, action = null) {
@@ -1532,7 +1584,15 @@ byId("mobile-start-button").addEventListener("click", () => {
   $(".forge-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
+const sharedMusterResult = await restoreSharedArmyFromHash();
 renderAll();
+if (sharedMusterResult === "imported") {
+  showToast("Shared army opened in the muster and saved on this device.");
+} else if (sharedMusterResult === "invalid") {
+  showToast("That shared army link is invalid or damaged.");
+} else if (sharedMusterResult === "kept-current") {
+  showToast("Kept this device's current working muster.");
+}
 
 if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
   navigator.serviceWorker.register("./service-worker.js").catch(() => {

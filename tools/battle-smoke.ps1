@@ -77,10 +77,31 @@ function Wait-ForBattleHook {
   throw "Battle Cards did not finish loading. $diagnostic"
 }
 
+function Wait-ForMusterHook {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ExpectedArmyName
+  )
+  $expectedNameJson = $ExpectedArmyName | ConvertTo-Json -Compress
+  for ($attempt = 0; $attempt -lt 50; $attempt += 1) {
+    try {
+      if (Invoke-BrowserExpression -Expression "Boolean(globalThis.__FB_MUSTER__ && globalThis.__FB_MUSTER__.getState().armyName === $expectedNameJson)") {
+        return
+      }
+    } catch {
+      # Navigation can replace the JavaScript context between polls.
+    }
+    Start-Sleep -Milliseconds 100
+  }
+  $diagnostic = Invoke-BrowserExpression -Expression "JSON.stringify({ href: location.href, ready: document.readyState, hasHook: Boolean(globalThis.__FB_MUSTER__), armyName: globalThis.__FB_MUSTER__?.getState?.().armyName || '' })"
+  throw "The shared army did not return to the muster. $diagnostic"
+}
+
 try {
   $navigateExpression = @'
 (async () => {
   const { encodeArmyPayload } = await import('./battle-state.js');
+  localStorage.removeItem('fantastic-battles-muster:v1');
   const smokeName = `Battle Smoke Host ${Date.now()}`;
   const payload = await encodeArmyPayload({
     armyName: smokeName,
@@ -190,6 +211,7 @@ try {
     afterDecrease,
     ruleChecks,
     shareLink,
+    musterLink: document.querySelector('[data-muster-link]').href,
     qrPresent,
     touchTargets,
     serviceWorkerSupported: 'serviceWorker' in navigator,
@@ -216,6 +238,9 @@ try {
   }
   if ($result.strategyButtons -ne 1 -or $result.shareLink -notmatch "battle\.html#army=fb2\.(gz|raw)\.") {
     throw "Expected a self-contained share link with the selected strategy."
+  }
+  if ($result.musterLink -notmatch "index\.html#army=fb2\.(gz|raw)\.") {
+    throw "Expected Back to Muster to carry the shared army."
   }
   if (-not $result.qrPresent -or -not $result.touchTargets) {
     throw "Expected a local QR code and touch-sized Resolve controls."
@@ -246,12 +271,31 @@ try {
     throw "Expected Resolve to survive reload and Reset Resolve to restore the maximum."
   }
 
+  [void](Invoke-BrowserExpression -Expression "document.querySelector('[data-muster-link]').click(); true")
+  Wait-ForMusterHook -ExpectedArmyName $smokeName
+  $musterReturn = Invoke-BrowserExpression -Expression @'
+(() => {
+  const state = globalThis.__FB_MUSTER__.getState();
+  const stored = JSON.parse(localStorage.getItem('fantastic-battles-muster:v1') || 'null');
+  return {
+    armyName: state.armyName,
+    unitCount: state.units.length,
+    storedArmyName: stored?.armyName || '',
+    hashCleared: location.hash === '',
+  };
+})()
+'@
+  if ($musterReturn.armyName -ne $smokeName -or $musterReturn.unitCount -ne 2 -or $musterReturn.storedArmyName -ne $smokeName -or -not $musterReturn.hashCleared) {
+    throw "Expected Back to Muster to restore and save the shared army on an empty device."
+  }
+
   [pscustomobject]@{
     army = $result.title
     cards = $result.cards
     resolveMaximum = $result.firstMaximum
     resolveAfterDecrease = $result.afterDecrease
     resolveRetainedAfterReload = $restored.retained
+    backToMusterRestored = $true
     qrPresent = $result.qrPresent
     rulePopups = $result.ruleChecks
     shareLinkLength = $result.shareLink.Length

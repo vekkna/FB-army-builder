@@ -43,6 +43,8 @@ The simplest permanent home for this project is GitHub Pages because every file 
 
 The roster snapshot is compressed into the URL fragment, which browsers do not send to the web host. Profiles, traits, spells, relics, and strategies are stored as compact catalogue references; the phone looks up their full game data from the site. Anyone who receives the complete link can still read the roster, so treat the link like an exported army file. Current Resolve is deliberately excluded from shared links and is stored only in that device's browser.
 
+**Back to Muster** carries the shared roster into an empty working muster on that device. If the device already has a different working army, the builder asks before replacing it; armies saved in **Save/Load** are not changed.
+
 ## Deliberate repairs to legacy spreadsheet edge cases
 
 The underlying data and intended formulas are preserved, but a few clear spreadsheet implementation defects are corrected:
