@@ -143,22 +143,30 @@
               <span>Racial trait</span>
               <small>One slot</small>
             </div>
-            <button class="picker-button" id="racial-trait-button" type="button">
-              <span class="picker-copy"><small>Racial</small><strong>Choose a trait</strong></span>
-              <span aria-hidden="true">›</span>
-            </button>
+            <div class="picker-rule-wrap">
+              <button class="picker-button" id="racial-trait-button" type="button">
+                <span class="picker-copy"><small>Racial</small><strong>Choose a trait</strong></span>
+                <span aria-hidden="true">›</span>
+              </button>
+              <button class="rule-info-button picker-rule-info" id="racial-trait-rule" type="button" hidden>
+                <span aria-hidden="true">i</span>
+              </button>
+            </div>
             <div class="control-label-row additional-label">
               <span>Additional traits</span>
               <small>Up to three</small>
             </div>
             <div class="trait-slots" id="additional-traits"></div>
           </div>
-          <label class="field relic-field" id="relic-field">
-            <span>Relic <small id="relic-help">Requires a character</small></span>
-            <select id="unit-relic" disabled>
-              <option value="">No relic</option>
-            </select>
-          </label>
+          <div class="field relic-field" id="relic-field">
+            <span><label for="unit-relic">Relic</label> <small id="relic-help">Requires a character</small></span>
+            <div class="relic-control-row">
+              <select id="unit-relic" disabled>
+                <option value="">No relic</option>
+              </select>
+              <button class="selected-rule-button" id="relic-rule-button" type="button" hidden>Read rule</button>
+            </div>
+          </div>
           <div class="spell-control" id="spell-controls" hidden>
             <div class="control-label-row">
               <span>Spells</span>
@@ -290,6 +298,22 @@
           <span>Added at level 1</span>
         </div>
         <div class="trait-results spell-results" id="spell-results"></div>
+      </div>
+    </dialog>
+    <dialog class="trait-dialog rule-info-dialog" id="rule-info-dialog" aria-labelledby="rule-info-title">
+      <div class="dialog-shell rule-info-dialog-shell">
+        <header class="dialog-header">
+          <div>
+            <p class="step-label" id="rule-info-kind">Rule</p>
+            <h2 id="rule-info-title">Rule description</h2>
+          </div>
+          <button class="dialog-close" id="rule-info-close" type="button"
+            aria-label="Close rule description">×</button>
+        </header>
+        <div class="rule-info-body">
+          <p class="rule-info-meta" id="rule-info-meta" hidden></p>
+          <div class="rule-info-copy" id="rule-info-copy"></div>
+        </div>
       </div>
     </dialog>
     <dialog class="library-dialog" id="library-dialog" aria-labelledby="library-dialog-title">

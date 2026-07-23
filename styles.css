@@ -760,6 +760,18 @@ p {
   box-shadow: 0 0 0 3px rgb(189 136 60 / 8%);
 }
 
+.picker-rule-wrap,
+.trait-slot-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.picker-rule-wrap .picker-button,
+.trait-slot-wrap .trait-slot {
+  min-height: 44px;
+  padding-right: 44px;
+}
+
 .picker-button:disabled,
 .trait-slot:disabled {
   opacity: .5;
@@ -817,6 +829,28 @@ p {
   opacity: .58;
 }
 
+.relic-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.selected-rule-button {
+  min-height: 36px;
+  padding: 6px 10px;
+  color: var(--forest-800);
+  background: var(--gold-soft);
+  border: 1px solid #cfb278;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.selected-rule-button:hover {
+  border-color: var(--gold-dark);
+}
+
 .spell-control {
   display: grid;
   gap: 7px;
@@ -846,6 +880,17 @@ p {
   display: grid;
   min-width: 0;
   gap: 1px;
+  padding: 2px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+}
+
+.spell-selection-copy:hover {
+  color: var(--forest-800);
+  background: rgb(255 255 255 / 62%);
 }
 
 .spell-selection-copy strong {
@@ -1130,12 +1175,18 @@ p {
   padding: 0 18px 14px;
 }
 
+.strategy-option-wrap {
+  position: relative;
+  min-width: 0;
+}
+
 .strategy-option {
   display: grid;
+  width: 100%;
   min-height: 44px;
   align-content: space-between;
   gap: 3px;
-  padding: 7px 8px;
+  padding: 7px 43px 7px 8px;
   text-align: left;
   color: var(--ink);
   background: var(--surface-soft);
@@ -1171,6 +1222,50 @@ p {
 
 .strategy-option.is-unavailable:not(.is-selected) {
   opacity: .47;
+}
+
+.rule-info-button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  color: var(--forest-800);
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.rule-info-button:hover {
+  color: #fff;
+  background: var(--forest-800);
+  border-color: var(--forest-900);
+}
+
+.strategy-rule-info {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 38px;
+  height: 38px;
+  color: var(--gold-dark);
+  background: rgb(255 253 248 / 90%);
+  border-color: rgb(141 96 37 / 36%);
+}
+
+.picker-rule-info {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 38px;
+  height: 38px;
+  color: var(--gold-dark);
+  background: rgb(255 253 248 / 90%);
+  border-color: rgb(141 96 37 / 36%);
 }
 
 .checks-panel {
@@ -1708,6 +1803,15 @@ p {
   border-radius: 8px;
   font-size: 13px;
   font-weight: 650;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+
+.upgrade-chip:hover {
+  color: var(--forest-800);
+  border-color: var(--gold);
+  box-shadow: 0 1px 4px rgb(23 34 30 / 10%);
 }
 
 .library-save-actions {
@@ -2025,8 +2129,16 @@ p {
   background: var(--surface-soft);
 }
 
+.trait-result-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 7px;
+}
+
 .trait-result {
   display: grid;
+  width: 100%;
   grid-template-columns: minmax(180px, .8fr) minmax(180px, 1.2fr) auto;
   align-items: center;
   gap: 12px;
@@ -2460,6 +2572,45 @@ p {
   }
 }
 
+.rule-info-dialog {
+  width: min(640px, calc(100% - 28px));
+}
+
+.rule-info-dialog-shell {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.rule-info-body {
+  padding: 2px 22px 24px;
+  overflow: auto;
+}
+
+.rule-info-meta {
+  margin: 0 0 14px;
+  padding: 9px 11px;
+  color: var(--forest-800);
+  background: var(--gold-soft);
+  border: 1px solid #ddc99f;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.rule-info-copy {
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.62;
+}
+
+.rule-info-copy p {
+  margin: 0 0 13px;
+  white-space: pre-line;
+}
+
+.rule-info-copy p:last-child {
+  margin-bottom: 0;
+}
+
 /* Campaign Ledger theme experiment
    Kept in one screen-only layer so the theme is easy to compare or revert,
    while printed rosters, cards, and rules retain their purpose-built styling. */
@@ -2870,6 +3021,33 @@ p {
   }
 }
 
+@media (max-width: 620px) {
+  .picker-rule-info,
+  .strategy-rule-info {
+    top: 1px;
+    right: 1px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .selected-rule-button {
+    min-height: 44px;
+  }
+
+  .upgrade-chip[data-rule-info-type] {
+    min-height: 36px;
+    padding: 7px 9px;
+  }
+
+  .rule-info-body {
+    padding: 0 16px 20px;
+  }
+
+  .rule-info-copy {
+    font-size: 13px;
+  }
+}
+
 @media print {
   @page {
     margin: 0;
@@ -2888,6 +3066,9 @@ p {
   .checks-panel,
   .site-footer,
   .library-dialog,
+  .rule-info-dialog,
+  .rule-info-button,
+  .selected-rule-button,
   .unit-card-actions,
   .mobile-start-button {
     display: none !important;

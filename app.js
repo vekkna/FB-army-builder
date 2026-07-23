@@ -75,6 +75,7 @@ const elements = {
   unitName: byId("unit-name"),
   unitBases: byId("unit-bases"),
   racialTraitButton: byId("racial-trait-button"),
+  racialTraitRule: byId("racial-trait-rule"),
   additionalTraits: byId("additional-traits"),
   heroTraitNote: byId("hero-trait-note"),
   traitControls: byId("trait-controls"),
@@ -82,6 +83,7 @@ const elements = {
   relicField: byId("relic-field"),
   relicHelp: byId("relic-help"),
   unitRelic: byId("unit-relic"),
+  relicRuleButton: byId("relic-rule-button"),
   spellControls: byId("spell-controls"),
   spellCount: byId("spell-count"),
   spellList: byId("spell-list"),
@@ -118,6 +120,11 @@ const elements = {
   spellDialog: byId("spell-dialog"),
   spellResults: byId("spell-results"),
   spellResultsCount: byId("spell-results-count"),
+  ruleInfoDialog: byId("rule-info-dialog"),
+  ruleInfoKind: byId("rule-info-kind"),
+  ruleInfoTitle: byId("rule-info-title"),
+  ruleInfoMeta: byId("rule-info-meta"),
+  ruleInfoCopy: byId("rule-info-copy"),
   toast: byId("toast"),
   importFile: byId("import-file"),
   libraryButton: byId("library-button"),
@@ -492,6 +499,74 @@ function spellTooltip(spell) {
   return `Roll needed: ${spell.difficulty}${spell.errata ? " (errata)" : ""}\n\n${spell.description}`;
 }
 
+function ruleInfoButton(type, name, level = 0, className = "") {
+  return `<button class="rule-info-button${className ? ` ${className}` : ""}" type="button"
+    data-rule-info-type="${escapeHTML(type)}" data-rule-info-name="${escapeHTML(name)}"
+    ${level ? `data-rule-info-level="${level}"` : ""}
+    aria-label="Read the ${escapeHTML(name)} rule" title="Read rule">
+    <span aria-hidden="true">i</span>
+  </button>`;
+}
+
+function ruleInfoDetails(type, name, level = 0) {
+  if (type === "trait") {
+    const rule = TRAIT_BY_NAME.get(name);
+    const modifier = rule ? describeOption(rule, { includePoints: false }) : "";
+    return rule ? {
+      kind: "Trait",
+      title: rule.name,
+      meta: `${formatSigned(rule.points)} points${modifier ? ` · ${modifier}` : ""}`,
+      description: rule.description,
+    } : null;
+  }
+  if (type === "relic") {
+    const rule = RELIC_BY_NAME.get(name);
+    const modifier = rule ? describeOption(rule, { includePoints: false }) : "";
+    return rule ? {
+      kind: "Relic",
+      title: rule.name,
+      meta: `${formatSigned(rule.points)} points${modifier ? ` · ${modifier}` : ""}`,
+      description: rule.description,
+    } : null;
+  }
+  if (type === "strategy") {
+    const rule = STRATEGY_BY_NAME.get(name);
+    return rule ? {
+      kind: "Strategy",
+      title: rule.name,
+      meta: `${integer.format(rule.points)} points`,
+      description: rule.description,
+    } : null;
+  }
+  if (type === "spell") {
+    const rule = SPELL_BY_NAME.get(name);
+    return rule ? {
+      kind: "Spell",
+      title: rule.name,
+      meta: `${level ? `Selected at level ${level} · ` : ""}Roll needed: ${rule.difficulty}${rule.errata ? " · Errata applied" : ""}`,
+      description: rule.description,
+    } : null;
+  }
+  return null;
+}
+
+function openRuleInfo(type, name, level = 0) {
+  const details = ruleInfoDetails(type, name, level);
+  if (!details) return;
+  elements.ruleInfoKind.textContent = details.kind;
+  elements.ruleInfoTitle.textContent = details.title;
+  elements.ruleInfoMeta.textContent = details.meta;
+  elements.ruleInfoMeta.hidden = !details.meta;
+  elements.ruleInfoCopy.replaceChildren();
+  for (const paragraphText of String(details.description).split(/\n{2,}/u)) {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = paragraphText;
+    elements.ruleInfoCopy.append(paragraph);
+  }
+  elements.ruleInfoDialog.showModal();
+  byId("rule-info-close").focus();
+}
+
 function normaliseDraftSpellSelection() {
   draft.spells = canChooseSpells(draft)
     ? normaliseSpells(draft.spells, spellLevelAllowance(draft))
@@ -510,10 +585,12 @@ function renderSpellControls() {
     const spell = SPELL_BY_NAME.get(selection.name);
     const tooltip = spellTooltip(spell);
     return `<div class="spell-selection" title="${escapeHTML(tooltip)}">
-      <span class="spell-selection-copy">
+      <button class="spell-selection-copy" type="button" data-rule-info-type="spell"
+        data-rule-info-name="${escapeHTML(selection.name)}" data-rule-info-level="${selection.level}"
+        aria-label="Read the ${escapeHTML(selection.name)} spell rule">
         <strong>${escapeHTML(selection.name)}</strong>
         <small>Level ${selection.level} · roll ${escapeHTML(spell?.difficulty ?? "n/a")}</small>
-      </span>
+      </button>
       <span class="spell-level-controls">
         <button type="button" data-spell-action="decrease" data-spell-index="${index}" aria-label="Decrease ${escapeHTML(selection.name)} level" ${selection.level <= 1 ? "disabled" : ""}>−</button>
         <button type="button" data-spell-action="increase" data-spell-index="${index}" aria-label="Increase ${escapeHTML(selection.name)} level" ${selection.level >= 3 || levelsUsed >= allowance ? "disabled" : ""}>+</button>
@@ -551,13 +628,23 @@ function renderDraft() {
   elements.racialTraitButton.classList.toggle("is-filled", Boolean(draft.racialTrait));
   elements.racialTraitButton.innerHTML = pickerMarkup("Choose a trait", draft.racialTrait, "Racial");
   elements.racialTraitButton.title = TRAIT_BY_NAME.get(draft.racialTrait)?.description ?? "Choose a racial trait";
+  elements.racialTraitRule.hidden = !draft.racialTrait;
+  elements.racialTraitRule.dataset.ruleInfoType = "trait";
+  elements.racialTraitRule.dataset.ruleInfoName = draft.racialTrait;
+  elements.racialTraitRule.setAttribute(
+    "aria-label",
+    draft.racialTrait ? `Read the ${draft.racialTrait} rule` : "Read the selected racial trait rule",
+  );
 
   elements.additionalTraits.innerHTML = Array.from({ length: WORKBOOK_META.maxAdditionalTraits }, (_, index) => {
     const name = draft.traits[index] ?? "";
     const title = TRAIT_BY_NAME.get(name)?.description ?? `Choose trait ${index + 1}`;
-    return `<button class="trait-slot${name ? " is-filled" : ""}" type="button" data-trait-slot="${index}" title="${escapeHTML(title)}" ${!hasProfile || hero ? "disabled" : ""}>
-      ${pickerMarkup(`Choose trait ${index + 1}`, name, `Trait ${index + 1}`)}
-    </button>`;
+    return `<div class="trait-slot-wrap">
+      <button class="trait-slot${name ? " is-filled" : ""}" type="button" data-trait-slot="${index}" title="${escapeHTML(title)}" ${!hasProfile || hero ? "disabled" : ""}>
+        ${pickerMarkup(`Choose trait ${index + 1}`, name, `Trait ${index + 1}`)}
+      </button>
+      ${name ? ruleInfoButton("trait", name, 0, "picker-rule-info") : ""}
+    </div>`;
   }).join("");
 
   const relicAllowed = canTakeRelic(draft);
@@ -565,6 +652,14 @@ function renderDraft() {
   elements.relicField.classList.toggle("is-disabled", !relicAllowed);
   elements.relicHelp.textContent = relicAllowed ? "Optional" : "Requires a character";
   renderRelicOptions();
+  elements.relicRuleButton.hidden = !draft.relic;
+  elements.relicRuleButton.disabled = !relicAllowed || !draft.relic;
+  elements.relicRuleButton.dataset.ruleInfoType = "relic";
+  elements.relicRuleButton.dataset.ruleInfoName = draft.relic;
+  elements.relicRuleButton.setAttribute(
+    "aria-label",
+    draft.relic ? `Read the ${draft.relic} rule` : "Read the selected relic rule",
+  );
   renderSpellControls();
 
   if (!hasProfile) {
@@ -651,11 +746,14 @@ function renderStrategies() {
     const selected = state.strategies.includes(strategy.name);
     const unavailable = !selected && state.strategies.length >= WORKBOOK_META.maxStrategies;
     const title = strategy.description;
-    return `<button class="strategy-option${selected ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}" type="button"
-      data-strategy="${escapeHTML(strategy.name)}" aria-pressed="${selected}" ${unavailable ? 'disabled aria-disabled="true"' : ""} title="${escapeHTML(title)}">
-      <strong>${escapeHTML(strategy.name)}</strong>
-      <span>${selected ? "✓ " : "+ "}${strategy.points} pts</span>
-    </button>`;
+    return `<div class="strategy-option-wrap">
+      <button class="strategy-option${selected ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}" type="button"
+        data-strategy="${escapeHTML(strategy.name)}" aria-pressed="${selected}" ${unavailable ? 'disabled aria-disabled="true"' : ""} title="${escapeHTML(title)}">
+        <strong>${escapeHTML(strategy.name)}</strong>
+        <span>${selected ? "✓ " : "+ "}${strategy.points} pts</span>
+      </button>
+      ${ruleInfoButton("strategy", strategy.name, 0, "strategy-rule-info")}
+    </div>`;
   }).join("");
 }
 
@@ -663,19 +761,26 @@ function upgradeChips(unit) {
   const chips = [];
   if (unit.racialTrait) {
     const description = TRAIT_BY_NAME.get(unit.racialTrait)?.description ?? "";
-    chips.push(`<span class="upgrade-chip is-racial" title="${escapeHTML(description)}"><span class="upgrade-kind">Racial · </span>${escapeHTML(unit.racialTrait)}</span>`);
+    chips.push(`<button class="upgrade-chip is-racial" type="button" data-rule-info-type="trait"
+      data-rule-info-name="${escapeHTML(unit.racialTrait)}" title="${escapeHTML(description)}">
+      <span class="upgrade-kind">Racial · </span>${escapeHTML(unit.racialTrait)}</button>`);
   }
   for (const trait of unit.traits ?? []) {
     const description = TRAIT_BY_NAME.get(trait)?.description ?? "";
-    chips.push(`<span class="upgrade-chip" title="${escapeHTML(description)}">${escapeHTML(trait)}</span>`);
+    chips.push(`<button class="upgrade-chip" type="button" data-rule-info-type="trait"
+      data-rule-info-name="${escapeHTML(trait)}" title="${escapeHTML(description)}">${escapeHTML(trait)}</button>`);
   }
   for (const selection of unit.spells ?? []) {
     const spell = SPELL_BY_NAME.get(selection.name);
-    chips.push(`<span class="upgrade-chip is-spell" title="${escapeHTML(spellTooltip(spell))}"><span class="upgrade-kind">Spell · </span>${escapeHTML(selection.name)} L${selection.level}</span>`);
+    chips.push(`<button class="upgrade-chip is-spell" type="button" data-rule-info-type="spell"
+      data-rule-info-name="${escapeHTML(selection.name)}" data-rule-info-level="${selection.level}"
+      title="${escapeHTML(spellTooltip(spell))}"><span class="upgrade-kind">Spell · </span>${escapeHTML(selection.name)} L${selection.level}</button>`);
   }
   if (unit.relic) {
     const relic = RELIC_BY_NAME.get(unit.relic);
-    chips.push(`<span class="upgrade-chip is-relic" title="${escapeHTML(relic?.description ?? "")}"><span class="upgrade-kind">Relic · </span>${escapeHTML(unit.relic)}</span>`);
+    chips.push(`<button class="upgrade-chip is-relic" type="button" data-rule-info-type="relic"
+      data-rule-info-name="${escapeHTML(unit.relic)}" title="${escapeHTML(relic?.description ?? "")}">
+      <span class="upgrade-kind">Relic · </span>${escapeHTML(unit.relic)}</button>`);
   }
   return chips.length ? chips.join("") : `<span class="upgrade-chip">No traits or relic</span>`;
 }
@@ -933,14 +1038,17 @@ function renderTraitResults() {
       : getTraitAvailability(trait.name, draft, traitTarget.current);
     if (availability.available) availableCount += 1;
     const detail = describeOption(trait, { includePoints: false }) || "No direct stat modifier";
-    return `<button class="trait-result${current ? " is-selected" : ""}" type="button" data-trait-name="${escapeHTML(trait.name)}" title="${escapeHTML(trait.description)}"
-      ${availability.available ? "" : "disabled"}>
-      <span class="trait-result-name">${current ? "✓ " : ""}${escapeHTML(trait.name)}</span>
-      <span class="trait-result-detail">${escapeHTML(detail)}</span>
-      ${availability.available
-        ? `<span class="trait-result-points">${formatSigned(trait.points)} pts</span>`
-        : `<span class="trait-result-reason">${escapeHTML(availability.reason)}</span>`}
-    </button>`;
+    return `<div class="trait-result-row">
+      <button class="trait-result${current ? " is-selected" : ""}" type="button" data-trait-name="${escapeHTML(trait.name)}" title="${escapeHTML(trait.description)}"
+        ${availability.available ? "" : "disabled"}>
+        <span class="trait-result-name">${current ? "✓ " : ""}${escapeHTML(trait.name)}</span>
+        <span class="trait-result-detail">${escapeHTML(detail)}</span>
+        ${availability.available
+          ? `<span class="trait-result-points">${formatSigned(trait.points)} pts</span>`
+          : `<span class="trait-result-reason">${escapeHTML(availability.reason)}</span>`}
+      </button>
+      ${ruleInfoButton("trait", trait.name)}
+    </div>`;
   }).join("") || `<div class="no-results">No traits match “${escapeHTML(elements.traitSearch.value)}”.</div>`;
   elements.traitResultsCount.textContent = `${matches.length} ${matches.length === 1 ? "match" : "matches"} · ${availableCount} available`;
 }
@@ -981,14 +1089,17 @@ function renderSpellResults() {
   elements.spellResults.innerHTML = SPELLS.map((spell) => {
     const available = levelsUsed < allowance;
     if (available) availableCount += 1;
-    return `<button class="trait-result spell-result" type="button" data-spell-name="${escapeHTML(spell.name)}"
-      title="${escapeHTML(spellTooltip(spell))}" ${available ? "" : "disabled"}>
-      <span class="trait-result-name">${escapeHTML(spell.name)}</span>
-      <span class="trait-result-detail">Roll needed: ${escapeHTML(spell.difficulty)}${spell.errata ? " · errata" : ""}</span>
-      ${available
-        ? `<span class="trait-result-points">Add at level 1</span>`
-        : `<span class="trait-result-reason">No spell levels remaining</span>`}
-    </button>`;
+    return `<div class="trait-result-row">
+      <button class="trait-result spell-result" type="button" data-spell-name="${escapeHTML(spell.name)}"
+        title="${escapeHTML(spellTooltip(spell))}" ${available ? "" : "disabled"}>
+        <span class="trait-result-name">${escapeHTML(spell.name)}</span>
+        <span class="trait-result-detail">Roll needed: ${escapeHTML(spell.difficulty)}${spell.errata ? " · errata" : ""}</span>
+        ${available
+          ? `<span class="trait-result-points">Add at level 1</span>`
+          : `<span class="trait-result-reason">No spell levels remaining</span>`}
+      </button>
+      ${ruleInfoButton("spell", spell.name)}
+    </div>`;
   }).join("");
   elements.spellResultsCount.textContent = `${availableCount} available · ${levelsUsed} / ${allowance} levels used`;
 }
@@ -1527,6 +1638,19 @@ elements.spellResults.addEventListener("click", (event) => {
 byId("spell-dialog-close").addEventListener("click", () => elements.spellDialog.close());
 elements.spellDialog.addEventListener("click", (event) => {
   if (event.target === elements.spellDialog) elements.spellDialog.close();
+});
+document.addEventListener("click", (event) => {
+  const trigger = event.target.closest("[data-rule-info-type]");
+  if (!trigger) return;
+  openRuleInfo(
+    trigger.dataset.ruleInfoType,
+    trigger.dataset.ruleInfoName,
+    Number(trigger.dataset.ruleInfoLevel) || 0,
+  );
+});
+byId("rule-info-close").addEventListener("click", () => elements.ruleInfoDialog.close());
+elements.ruleInfoDialog.addEventListener("click", (event) => {
+  if (event.target === elements.ruleInfoDialog) elements.ruleInfoDialog.close();
 });
 
 byId("library-button").addEventListener("click", openLibrary);

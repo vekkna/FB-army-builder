@@ -172,6 +172,23 @@ try {
   }
   const restoredLibraryCount = globalThis.__FB_MUSTER__.getLibrary().length;
   click('#library-dialog-close');
+  const builderRuleDialogs = {};
+  for (const type of ['trait', 'spell', 'relic', 'strategy']) {
+    const trigger = Array.from(document.querySelectorAll(`[data-rule-info-type="${type}"]`))
+      .find((element) => element.getClientRects().length > 0);
+    if (!trigger) {
+      builderRuleDialogs[type] = false;
+      continue;
+    }
+    trigger.click();
+    builderRuleDialogs[type] = document.querySelector('#rule-info-dialog').open
+      && document.querySelector('#rule-info-title').textContent.trim().length > 0
+      && document.querySelector('#rule-info-copy').textContent.trim().length > 20;
+    click('#rule-info-close');
+  }
+  const ruleInfoTouchTargets = Array.from(document.querySelectorAll('.rule-info-button'))
+    .filter((button) => button.getClientRects().length > 0)
+    .every((button) => button.getBoundingClientRect().width >= 38 && button.getBoundingClientRect().height >= 38);
   return {
     units: globalThis.__FB_MUSTER__.getState().units.length,
     total: army.total,
@@ -216,6 +233,8 @@ try {
     tomeTooltip: document.querySelector('#unit-relic option[value="Mystical Tome of Revelation"]')?.title || '',
     tomeSpellCapacity,
     levelThreeIncreaseDisabled,
+    builderRuleDialogs,
+    ruleInfoTouchTargets,
     cardSpellNames: cardData.flatMap((card) => card.abilities.filter((ability) => ability.kind === 'Spell').map((ability) => ability.name)),
     dragReordered: orderBeforeDrag[0] === orderAfterDrag[1] && orderBeforeDrag[1] === orderAfterDrag[0],
     dragHandles: document.querySelectorAll('[data-drag-handle]').length,
@@ -300,6 +319,7 @@ try {
   if ($result.tomeSpellCapacity -ne "4 / 4 levels" -or $result.tomeTooltip -notlike "*additional spell level*") { throw "Expected Mystical Tome to visibly grant a fourth spell level." }
   if (-not $result.levelThreeIncreaseDisabled) { throw "Expected individual spells to remain capped at level 3 with the Tome." }
   if ($result.blinkTooltip -notlike "*Roll needed: 5+ (errata)*") { throw "Expected the Blink errata in its tooltip." }
+  if (-not $result.builderRuleDialogs.trait -or -not $result.builderRuleDialogs.spell -or -not $result.builderRuleDialogs.relic -or -not $result.builderRuleDialogs.strategy -or -not $result.ruleInfoTouchTargets) { throw "Expected touch-readable trait, spell, relic, and strategy descriptions in the muster. Dialogs: $($result.builderRuleDialogs | ConvertTo-Json -Compress); touch targets: $($result.ruleInfoTouchTargets)." }
   if ($result.cardSpellNames -notcontains "Bless L3" -or $result.cardSpellNames -notcontains "Bless L1") { throw "Expected both Bless selections in unit-card data." }
   if (-not $result.dragReordered -or $result.dragHandles -ne 2 -or $result.directionButtons -ne 0) { throw "Expected drag handles to reorder units without Up/Down buttons." }
   if ($result.libraryWarning -notlike "*Clearing this site's data*" -or $result.libraryWarning -notlike "*Export a JSON backup*") { throw "Expected a clear browser-storage loss warning in the army library." }

@@ -1,4 +1,4 @@
-const CACHE_NAME = "fantastic-battles-muster-v5";
+const CACHE_NAME = "fantastic-battles-muster-v7";
 const APP_FILES = [
   "./",
   "./index.html",
