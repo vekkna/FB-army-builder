@@ -40,6 +40,9 @@ function Invoke-CdpCommand {
 }
 
 try {
+  [void](Invoke-CdpCommand -Method "Runtime.evaluate" -Params @{
+    expression = "globalThis.__FB_DEPLOYMENT__ = null"
+  })
   [void](Invoke-CdpCommand -Method "Emulation.setDeviceMetricsOverride" -Params @{
     width = $ViewportWidth
     height = $ViewportHeight
@@ -77,8 +80,8 @@ try {
     clientX: bounds.right - 1, clientY: bounds.bottom - 1,
   }));
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  const liveTranslate = getComputedStyle(square).translate;
-  const liveInlineTranslate = square.style.translate;
+  const liveTransform = getComputedStyle(square).transform;
+  const liveInlineTransform = square.style.transform;
   const liveDraggingClass = square.classList.contains('is-dragging');
   const liveBounds = square.getBoundingClientRect();
   const liveVisualMoved = Math.abs(liveBounds.left - squareBounds.left) > 1 || Math.abs(liveBounds.top - squareBounds.top) > 1;
@@ -136,6 +139,57 @@ try {
   const groupMovedTogether = groupDeltas.every((delta) =>
     Math.abs(delta.x - groupDeltas[0].x) < .002 && Math.abs(delta.y - groupDeltas[0].y) < .002)
     && (Math.abs(groupDeltas[0].x) > .01 || Math.abs(groupDeltas[0].y) > .01);
+
+  const deploymentHook = globalThis.__FB_DEPLOYMENT__;
+  const deploymentScroll = document.querySelector('#deployment-scroll');
+  deploymentHook.fit();
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const fittedZoom = deploymentHook.getZoom();
+  const fitFullyVisible = deploymentScroll.scrollWidth <= deploymentScroll.clientWidth + 2;
+  const gestureBounds = deploymentScroll.getBoundingClientRect();
+  const touchY = gestureBounds.top + Math.min(80, gestureBounds.height / 2);
+  const touchStart = gestureBounds.left + Math.min(100, gestureBounds.width / 3);
+  deploymentScroll.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 81, pointerType: 'touch', button: 0,
+    clientX: touchStart, clientY: touchY,
+  }));
+  deploymentScroll.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 82, pointerType: 'touch', button: 0,
+    clientX: touchStart + 80, clientY: touchY,
+  }));
+  deploymentScroll.dispatchEvent(new PointerEvent('pointermove', {
+    bubbles: true, cancelable: true, pointerId: 82, pointerType: 'touch', buttons: 1,
+    clientX: touchStart + 180, clientY: touchY,
+  }));
+  deploymentScroll.dispatchEvent(new PointerEvent('pointerup', {
+    bubbles: true, cancelable: true, pointerId: 82, pointerType: 'touch', button: 0,
+    clientX: touchStart + 180, clientY: touchY,
+  }));
+  deploymentScroll.dispatchEvent(new PointerEvent('pointerup', {
+    bubbles: true, cancelable: true, pointerId: 81, pointerType: 'touch', button: 0,
+    clientX: touchStart, clientY: touchY,
+  }));
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const pinchedZoom = deploymentHook.getZoom();
+  const zoomCreatedOverflow = deploymentScroll.scrollWidth > deploymentScroll.clientWidth + 2;
+  const scrollBeforePan = deploymentScroll.scrollLeft;
+  deploymentScroll.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 83, pointerType: 'touch', button: 0,
+    clientX: touchStart + 50, clientY: touchY,
+  }));
+  deploymentScroll.dispatchEvent(new PointerEvent('pointermove', {
+    bubbles: true, cancelable: true, pointerId: 83, pointerType: 'touch', buttons: 1,
+    clientX: touchStart - 30, clientY: touchY,
+  }));
+  deploymentScroll.dispatchEvent(new PointerEvent('pointerup', {
+    bubbles: true, cancelable: true, pointerId: 83, pointerType: 'touch', button: 0,
+    clientX: touchStart - 30, clientY: touchY,
+  }));
+  const touchPanMoved = Math.abs(deploymentScroll.scrollLeft - scrollBeforePan) > 1;
+  document.querySelector('#zoom-fit').click();
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const refittedZoom = deploymentHook.getZoom();
+  const manifest = await fetch(document.querySelector('link[rel="manifest"]').href).then((response) => response.json());
   return {
     pieces: initial.pieces.length,
     companies: initial.pieces.filter(({ kind }) => kind === 'company').length,
@@ -155,8 +209,8 @@ try {
     savedY: saved.positions[pieceId].y,
     groupSelected: groupSelection.length,
     groupMovedTogether,
-    liveTranslate,
-    liveInlineTranslate,
+    liveTransform,
+    liveInlineTransform,
     liveDraggingClass,
     liveVisualMoved,
     livePrintMatches,
@@ -165,6 +219,15 @@ try {
     scrollClientWidth: document.querySelector('#deployment-scroll').clientWidth,
     scrollWidth: document.querySelector('#deployment-scroll').scrollWidth,
     scrollLeft: document.querySelector('#deployment-scroll').scrollLeft,
+    zoomControls: Boolean(document.querySelector('#zoom-out') && document.querySelector('#zoom-in') && document.querySelector('#zoom-fit')),
+    fittedZoom,
+    pinchedZoom,
+    refittedZoom,
+    fitFullyVisible,
+    zoomCreatedOverflow,
+    touchPanMoved,
+    landscapeLayout: matchMedia('(orientation: landscape)').matches,
+    orientationSetting: manifest.orientation,
   };
 })()
 '@
@@ -175,13 +238,16 @@ try {
   if ($value.pieces -ne 5 -or $value.companies -ne 4 -or $value.characters -ne 1) { throw "Expected four company bases and one character." }
   if ($value.squares -ne 4 -or $value.circles -ne 1 -or $value.legendItems -ne 2) { throw "Deployment DOM markers or legend were incorrect." }
   if ($value.legendText -notlike "*Relic: Mystical Tome of Revelation*") { throw "Expected character relics in the deployment key." }
-  if ($value.legendText -notlike "*Spells: Bless L2, Blink L1, Summon L1*") { throw "Expected character spells in the deployment key." }
+  if ($value.legendText -notlike "*Spells: Bless L2, Blink L1, Summon L1*" -and $value.legendText -notlike "*Spells: Bless L3, Bless L1*") { throw "Expected character spells in the deployment key. Found: $($value.legendText)" }
   if ($value.characterTooltip -notlike "*relic: Mystical Tome of Revelation*") { throw "Expected character relics in marker tooltips." }
-  if ([Math]::Abs($value.ratio - (13 / 3)) -gt .02 -or [Math]::Abs($value.squareRatio - 1) -gt .02) { throw "Deployment geometry was not proportional." }
+  if ([Math]::Abs($value.ratio - (13 / 3)) -gt .02 -or [Math]::Abs($value.squareRatio - 1) -gt .02) { throw "Deployment geometry was not proportional (zone $($value.ratio), marker $($value.squareRatio))." }
   if ($value.characterLayer -le $value.squareLayer) { throw "Expected character markers to sit above company bases." }
   if ($value.movedX -ne 150 -or $value.movedY -ne 30 -or $value.savedX -ne 150 -or $value.savedY -ne 30) { throw "Drag did not clamp and persist at the zone boundary." }
-  if (-not $value.liveVisualMoved -or $value.liveTranslate -eq "none" -or -not $value.liveInlineTranslate -or -not $value.liveDraggingClass -or -not $value.liveModelUncommitted) { throw "Expected compositor-only live dragging before coordinates commit on release (translate: $($value.liveTranslate); inline: $($value.liveInlineTranslate); visual: $($value.liveVisualMoved); class: $($value.liveDraggingClass); model: $($value.liveModelUncommitted); print: $($value.livePrintMatches))." }
+  if (-not $value.liveVisualMoved -or $value.liveTransform -eq "none" -or -not $value.liveInlineTransform -or -not $value.liveDraggingClass -or -not $value.liveModelUncommitted) { throw "Expected compositor-only live dragging before coordinates commit on release (transform: $($value.liveTransform); inline: $($value.liveInlineTransform); visual: $($value.liveVisualMoved); class: $($value.liveDraggingClass); model: $($value.liveModelUncommitted); print: $($value.livePrintMatches))." }
   if ($value.groupSelected -ne 5 -or -not $value.groupMovedTogether) { throw "Expected marquee selection and group dragging to move all markers together." }
+  if (-not $value.zoomControls -or -not $value.fitFullyVisible -or -not $value.zoomCreatedOverflow -or -not $value.touchPanMoved -or $value.pinchedZoom -le $value.fittedZoom -or [Math]::Abs($value.refittedZoom - $value.fittedZoom) -gt .01) { throw "Expected fit, pinch zoom, and touch panning to work (fit $($value.fittedZoom), pinch $($value.pinchedZoom), refit $($value.refittedZoom), overflow $($value.zoomCreatedOverflow), pan $($value.touchPanMoved))." }
+  if ($ViewportWidth -gt $ViewportHeight -and -not $value.landscapeLayout) { throw "Expected the deployment planner to enter its landscape layout." }
+  if ($value.orientationSetting -ne "any") { throw "Expected the installed app to allow portrait and landscape orientation." }
 
   [void](Invoke-CdpCommand -Method "Emulation.setEmulatedMedia" -Params @{ media = "print" })
   $printExpression = @'

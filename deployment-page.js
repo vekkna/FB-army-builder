@@ -18,6 +18,7 @@ const byId = (id) => document.getElementById(id);
 const elements = {
   title: byId("deployment-title"),
   zone: byId("deployment-zone"),
+  canvas: byId("zone-canvas"),
   scroll: byId("deployment-scroll"),
   empty: byId("deployment-empty"),
   overflow: byId("deployment-overflow"),
@@ -30,16 +31,30 @@ const elements = {
   marquee: byId("selection-marquee"),
   selectionCount: byId("selection-count"),
   clearSelection: byId("clear-selection"),
+  zoomOut: byId("zoom-out"),
+  zoomIn: byId("zoom-in"),
+  zoomFit: byId("zoom-fit"),
+  zoomLevel: byId("zoom-level"),
   reset: byId("reset-deployment"),
   print: byId("print-deployment"),
 };
 
+const MIN_CANVAS_WIDTH = 1038;
+const MIN_ZOOM = .25;
+const MAX_ZOOM = 2.5;
+const ZOOM_FACTOR = 1.25;
 let army = { armyName: "", units: [] };
 let plan = { pieces: [], summons: [], overflow: false };
 let piecesById = new Map();
 let markerElementsById = new Map();
 let selectedPieceIds = new Set();
 let drag = null;
+let canvasBaseWidth = MIN_CANVAS_WIDTH;
+let zoom = 1;
+let fitMode = window.innerWidth <= 700 || window.innerHeight <= 500;
+const touchPoints = new Map();
+let touchGesture = null;
+let suppressTouchGestureUntilRelease = false;
 
 function readJSON(key, fallback) {
   try {
@@ -80,6 +95,7 @@ function applyPiecePosition(element, piece) {
   element.style.left = `${piece.x / ZONE_WIDTH_CM * 100}%`;
   element.style.top = `${piece.y / ZONE_DEPTH_CM * 100}%`;
   element.style.width = `${piece.sizeCm / ZONE_WIDTH_CM * 100}%`;
+  element.style.height = `${piece.sizeCm / ZONE_WIDTH_CM * 100}cqw`;
 }
 
 function pieceDescription(piece) {
@@ -211,6 +227,82 @@ function renderSummons() {
   }
 }
 
+function clampZoom(value) {
+  const numeric = Number(value);
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number.isFinite(numeric) ? numeric : 1));
+}
+
+function fitZoomLevel() {
+  return clampZoom((elements.scroll.clientWidth - 2) / canvasBaseWidth);
+}
+
+function updateZoomControls() {
+  const rounded = Math.round(zoom * 100);
+  elements.zoomLevel.textContent = `${rounded}%`;
+  elements.zoomOut.disabled = zoom <= MIN_ZOOM + .001;
+  elements.zoomIn.disabled = zoom >= MAX_ZOOM - .001;
+  elements.zoomFit.setAttribute("aria-pressed", String(fitMode));
+  elements.zoomFit.title = fitMode ? "The whole deployment zone is fitted to the viewport" : "Fit the whole deployment zone";
+}
+
+function setZoom(nextZoom, {
+  fit = false,
+  announce = true,
+  anchorClientX,
+  anchorClientY,
+  anchorFractionX,
+  anchorFractionY,
+} = {}) {
+  const bounds = elements.scroll.getBoundingClientRect();
+  const localX = Number.isFinite(anchorClientX)
+    ? anchorClientX - bounds.left
+    : elements.scroll.clientWidth / 2;
+  const localY = Number.isFinite(anchorClientY)
+    ? anchorClientY - bounds.top
+    : elements.scroll.clientHeight / 2;
+  const fractionX = Number.isFinite(anchorFractionX)
+    ? anchorFractionX
+    : (elements.scroll.scrollLeft + localX) / Math.max(1, elements.scroll.scrollWidth);
+  const fractionY = Number.isFinite(anchorFractionY)
+    ? anchorFractionY
+    : (elements.scroll.scrollTop + localY) / Math.max(1, elements.scroll.scrollHeight);
+
+  zoom = clampZoom(nextZoom);
+  fitMode = fit;
+  elements.canvas.style.width = `${Math.round(canvasBaseWidth * zoom)}px`;
+  elements.scroll.scrollLeft = fractionX * elements.scroll.scrollWidth - localX;
+  elements.scroll.scrollTop = fractionY * elements.scroll.scrollHeight - localY;
+  updateZoomControls();
+  if (announce) elements.status.textContent = `Deployment map zoom ${Math.round(zoom * 100)} percent.`;
+}
+
+function settleFittedZoom() {
+  window.requestAnimationFrame(() => {
+    if (!fitMode) return;
+    const fittedZoom = fitZoomLevel();
+    if (Math.abs(fittedZoom - zoom) > .001) {
+      setZoom(fittedZoom, { fit: true, announce: false });
+    }
+    centreViewportOnPieces();
+  });
+}
+
+function refreshZoomForViewport({ initial = false } = {}) {
+  canvasBaseWidth = Math.max(MIN_CANVAS_WIDTH, elements.scroll.clientWidth - 2);
+  if (fitMode) {
+    setZoom(fitZoomLevel(), { fit: true, announce: false });
+    settleFittedZoom();
+  } else {
+    setZoom(zoom, { fit: false, announce: false });
+  }
+  if (initial) updateZoomControls();
+}
+
+function fitDeploymentMap({ announce = true } = {}) {
+  setZoom(fitZoomLevel(), { fit: true, announce });
+  settleFittedZoom();
+}
+
 function centreViewportOnPieces() {
   window.requestAnimationFrame(() => {
     if (!plan.pieces.length || elements.scroll.scrollWidth <= elements.scroll.clientWidth) return;
@@ -300,10 +392,9 @@ function renderPieceDrag(activeDrag) {
   const delta = activeDrag.pendingDelta ?? { x: 0, y: 0 };
   const xPixels = delta.x / ZONE_WIDTH_CM * activeDrag.bounds.width;
   const yPixels = delta.y / ZONE_DEPTH_CM * activeDrag.bounds.height;
-  const translation = `${xPixels}px ${yPixels}px`;
   for (const piece of activeDrag.pieces) {
     const marker = markerElementsById.get(piece.id);
-    if (marker) marker.style.translate = translation;
+    if (marker) marker.style.transform = `translate3d(${xPixels}px, ${yPixels}px, 0)`;
   }
 }
 
@@ -321,7 +412,7 @@ function clearPieceDragVisuals(activeDrag) {
   for (const piece of activeDrag.pieces) {
     const marker = markerElementsById.get(piece.id);
     marker?.classList.remove("is-dragging");
-    marker?.style.removeProperty("translate");
+    marker?.style.removeProperty("transform");
   }
 }
 
@@ -333,6 +424,134 @@ function commitPieceDrag(activeDrag, delta) {
     applyPiecePosition(markerElementsById.get(piece.id), piece);
   }
 }
+
+function cancelDragForViewportGesture() {
+  if (!drag) return;
+  const activeDrag = drag;
+  if (activeDrag.frame) window.cancelAnimationFrame(activeDrag.frame);
+  if (activeDrag.capture.hasPointerCapture?.(activeDrag.pointerId)) {
+    activeDrag.capture.releasePointerCapture(activeDrag.pointerId);
+  }
+  if (activeDrag.type === "marquee") {
+    elements.marquee.hidden = true;
+    selectedPieceIds = activeDrag.initialSelection;
+    renderSelection();
+  } else {
+    clearPieceDragVisuals(activeDrag);
+  }
+  drag = null;
+}
+
+function touchPoint(event) {
+  return { x: event.clientX, y: event.clientY };
+}
+
+function touchPair() {
+  return [...touchPoints.values()].slice(0, 2);
+}
+
+function pairDistance(first, second) {
+  return Math.hypot(second.x - first.x, second.y - first.y);
+}
+
+function pairMidpoint(first, second) {
+  return {
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2,
+  };
+}
+
+function beginPinchGesture(event) {
+  const [first, second] = touchPair();
+  if (!first || !second) return;
+  cancelDragForViewportGesture();
+  const midpoint = pairMidpoint(first, second);
+  const bounds = elements.scroll.getBoundingClientRect();
+  const localX = midpoint.x - bounds.left;
+  const localY = midpoint.y - bounds.top;
+  touchGesture = {
+    type: "pinch",
+    startDistance: Math.max(1, pairDistance(first, second)),
+    startZoom: zoom,
+    anchorFractionX: (elements.scroll.scrollLeft + localX) / Math.max(1, elements.scroll.scrollWidth),
+    anchorFractionY: (elements.scroll.scrollTop + localY) / Math.max(1, elements.scroll.scrollHeight),
+  };
+  fitMode = false;
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+elements.scroll.addEventListener("pointerdown", (event) => {
+  if (event.pointerType !== "touch") return;
+  touchPoints.set(event.pointerId, touchPoint(event));
+  if (suppressTouchGestureUntilRelease) {
+    event.preventDefault();
+    return;
+  }
+  if (touchPoints.size >= 2) {
+    beginPinchGesture(event);
+    return;
+  }
+  touchGesture = {
+    type: "pending-pan",
+    pointerId: event.pointerId,
+    startsOnPiece: Boolean(event.target.closest(".deployment-piece")),
+    startX: event.clientX,
+    startY: event.clientY,
+    scrollLeft: elements.scroll.scrollLeft,
+    scrollTop: elements.scroll.scrollTop,
+  };
+}, true);
+
+elements.scroll.addEventListener("pointermove", (event) => {
+  if (event.pointerType !== "touch" || !touchPoints.has(event.pointerId)) return;
+  touchPoints.set(event.pointerId, touchPoint(event));
+  if (suppressTouchGestureUntilRelease) {
+    event.preventDefault();
+    return;
+  }
+  if (touchPoints.size >= 2) {
+    if (touchGesture?.type !== "pinch") beginPinchGesture(event);
+    const [first, second] = touchPair();
+    if (!first || !second || touchGesture?.type !== "pinch") return;
+    const midpoint = pairMidpoint(first, second);
+    const scale = pairDistance(first, second) / touchGesture.startDistance;
+    setZoom(touchGesture.startZoom * scale, {
+      fit: false,
+      announce: false,
+      anchorClientX: midpoint.x,
+      anchorClientY: midpoint.y,
+      anchorFractionX: touchGesture.anchorFractionX,
+      anchorFractionY: touchGesture.anchorFractionY,
+    });
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (touchGesture?.pointerId !== event.pointerId || touchGesture.startsOnPiece) return;
+  touchGesture.type = "pan";
+  elements.scroll.scrollLeft = touchGesture.scrollLeft - (event.clientX - touchGesture.startX);
+  elements.scroll.scrollTop = touchGesture.scrollTop - (event.clientY - touchGesture.startY);
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+function finishTouchGesture(event) {
+  if (event.pointerType !== "touch") return;
+  const wasPinching = touchGesture?.type === "pinch";
+  touchPoints.delete(event.pointerId);
+  if (wasPinching && touchPoints.size < 2) {
+    elements.status.textContent = `Deployment map zoom ${Math.round(zoom * 100)} percent.`;
+    suppressTouchGestureUntilRelease = touchPoints.size > 0;
+    touchGesture = null;
+  } else if (touchGesture?.pointerId === event.pointerId) {
+    touchGesture = null;
+  }
+  if (touchPoints.size === 0) suppressTouchGestureUntilRelease = false;
+}
+
+elements.scroll.addEventListener("pointerup", finishTouchGesture, true);
+elements.scroll.addEventListener("pointercancel", finishTouchGesture, true);
 
 elements.zone.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -466,6 +685,26 @@ elements.clearSelection.addEventListener("click", () => {
   elements.status.textContent = "Selection cleared.";
 });
 
+elements.zoomOut.addEventListener("click", () => {
+  setZoom(zoom / ZOOM_FACTOR, { fit: false });
+});
+
+elements.zoomIn.addEventListener("click", () => {
+  setZoom(zoom * ZOOM_FACTOR, { fit: false });
+});
+
+elements.zoomFit.addEventListener("click", () => fitDeploymentMap());
+
+elements.scroll.addEventListener("wheel", (event) => {
+  if (!event.ctrlKey && !event.metaKey) return;
+  event.preventDefault();
+  setZoom(zoom * Math.exp(-event.deltaY * .002), {
+    fit: false,
+    anchorClientX: event.clientX,
+    anchorClientY: event.clientY,
+  });
+}, { passive: false });
+
 elements.reset.addEventListener("click", () => {
   if (!window.confirm("Reset every marker to its initial grouped formation?")) return;
   selectedPieceIds.clear();
@@ -486,9 +725,13 @@ document.addEventListener("visibilitychange", () => {
 let resizeTimer;
 window.addEventListener("resize", () => {
   window.clearTimeout(resizeTimer);
-  resizeTimer = window.setTimeout(centreViewportOnPieces, 80);
+  resizeTimer = window.setTimeout(() => {
+    refreshZoomForViewport();
+    centreViewportOnPieces();
+  }, 80);
 });
 
+refreshZoomForViewport({ initial: true });
 loadCurrentPlan(true);
 
 if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
@@ -501,5 +744,9 @@ globalThis.__FB_DEPLOYMENT__ = Object.freeze({
   getArmy: () => structuredClone(army),
   getPlan: () => structuredClone(plan),
   getSelection: () => [...selectedPieceIds],
+  getZoom: () => zoom,
+  getZoomBounds: () => ({ minimum: MIN_ZOOM, maximum: MAX_ZOOM, fit: fitZoomLevel() }),
+  setZoom: (value) => setZoom(value, { fit: false }),
+  fit: () => fitDeploymentMap({ announce: false }),
   reset: () => loadCurrentPlan(false),
 });

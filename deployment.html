@@ -3,14 +3,14 @@
 
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#18231f">
     <meta name="description" content="Plan and print a Fantastic Battles army deployment.">
     <title>Plan Deployment · Fantastic Battles Muster</title>
     <link rel="icon" href="app-icon.svg" type="image/svg+xml">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="deployment.css?v=spell-key-2">
+    <link rel="stylesheet" href="deployment.css?v=zoom-5">
   </head>
 
   <body class="deployment-page">
@@ -53,17 +53,25 @@
             <h2 id="zone-title">Plan your deployment</h2>
           </div>
           <div class="planner-guidance">
-            <p><span aria-hidden="true">&#9633;</span> Drag empty space to select &nbsp;·&nbsp; Drag a selection to move
-              it</p>
-            <div class="selection-tools">
-              <strong id="selection-count">0 selected</strong>
-              <button id="clear-selection" type="button" disabled>Clear</button>
+            <p><span aria-hidden="true">&#9633;</span> Drag markers to move &nbsp;·&nbsp; Pinch or use the controls to
+              zoom &nbsp;·&nbsp; Drag empty space to pan on touchscreens</p>
+            <div class="planner-tools">
+              <div class="zoom-tools" role="group" aria-label="Deployment map zoom">
+                <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+                <output id="zoom-level" aria-live="polite">100%</output>
+                <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+                <button id="zoom-fit" type="button">Fit</button>
+              </div>
+              <div class="selection-tools">
+                <strong id="selection-count">0 selected</strong>
+                <button id="clear-selection" type="button" disabled>Clear</button>
+              </div>
             </div>
           </div>
         </div>
         <div class="deployment-scroll" id="deployment-scroll" tabindex="0"
-          aria-label="Horizontally scrollable deployment plan">
-          <div class="zone-canvas">
+          aria-label="Zoomable and pannable deployment plan">
+          <div class="zone-canvas" id="zone-canvas">
             <div class="zone-width-label"><span>156 cm</span></div>
             <div class="deployment-zone" id="deployment-zone" aria-label="156 by 36 centimetre deployment zone">
               <div class="battlefield-edge" aria-hidden="true"><span>&#8593;</span> Towards battlefield</div>
@@ -98,7 +106,7 @@
         <ul id="summons-list"></ul>
       </section>
     </main>
-    <script type="module" src="deployment-page.js?v=spell-key-2"></script>
+    <script type="module" src="deployment-page.js?v=zoom-5"></script>
   </body>
 
 </html>

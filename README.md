@@ -25,6 +25,7 @@ Then open <http://localhost:8000>. No install or build step is required.
 - One-click, print-ready unit-card PDFs (68 × 47.9 mm cards, four across on landscape A4)
 - Phone-friendly Battle Cards with persistent Resolve tracking, touch rule popups, and army-wide strategies
 - Touch-readable trait, spell, relic, and strategy descriptions while building an army
+- Pinch-zoomable, pannable deployment planning with phone landscape support
 - Self-contained phone links and locally generated QR codes; no account or army-sync server required
 - Offline caching and an app manifest for adding the Battle Cards page to a phone's home screen
 - A draggable 156 × 36 cm deployment planner with scale-correct bases and low-ink printing

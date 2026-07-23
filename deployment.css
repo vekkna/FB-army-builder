@@ -187,10 +187,22 @@
   gap: 6px;
 }
 
+.planner-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.zoom-tools,
 .selection-tools {
   display: flex;
   align-items: center;
   gap: 7px;
+}
+
+.zoom-tools {
+  gap: 4px;
 }
 
 .selection-tools strong {
@@ -198,6 +210,7 @@
   font-size: 11px;
 }
 
+.zoom-tools button,
 .selection-tools button {
   min-height: 27px;
   padding: 3px 8px;
@@ -209,6 +222,20 @@
   font-weight: 750;
 }
 
+.zoom-tools button {
+  min-width: 30px;
+  font-size: 14px;
+}
+
+.zoom-tools output {
+  min-width: 42px;
+  color: var(--forest-700);
+  font-size: 11px;
+  font-weight: 850;
+  text-align: center;
+}
+
+.zoom-tools button:disabled,
 .selection-tools button:disabled {
   opacity: .45;
 }
@@ -217,9 +244,11 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 2px 0 10px;
   scrollbar-color: var(--line-strong) transparent;
+  touch-action: none;
 }
 
 .deployment-scroll::-webkit-scrollbar-button {
@@ -235,8 +264,8 @@
 
 .zone-canvas {
   position: relative;
-  width: calc(100% - 2px);
-  min-width: 1038px;
+  width: max(calc(100% - 2px), 1038px);
+  min-width: 0;
   overflow: hidden;
   padding-top: 18px;
   padding-bottom: 16px;
@@ -273,6 +302,7 @@
 
 .deployment-zone {
   position: relative;
+  container-type: inline-size;
   width: 100%;
   aspect-ratio: 13 / 3;
   overflow: hidden;
@@ -341,8 +371,10 @@
   position: absolute;
   z-index: 3;
   display: grid;
-  height: auto;
+  min-width: 0;
+  min-height: 0;
   aspect-ratio: 1;
+  overflow: hidden;
   place-items: center;
   padding: 2px;
   color: var(--ink);
@@ -366,7 +398,7 @@
   cursor: grabbing;
   scale: 1.035;
   transform-origin: center;
-  will-change: translate, scale;
+  will-change: transform, scale;
 }
 
 .deployment-piece.is-character {
@@ -694,6 +726,26 @@
     justify-items: start;
   }
 
+  .planner-tools {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 7px 12px;
+  }
+
+  .zoom-tools button,
+  .selection-tools button {
+    min-height: 40px;
+  }
+
+  .zoom-tools button {
+    min-width: 40px;
+  }
+
+  .deployment-scroll {
+    max-height: min(70dvh, 620px);
+  }
+
   .legend-list {
     grid-template-columns: 1fr;
   }
@@ -704,6 +756,98 @@
 
   .summons-panel ul {
     grid-column: 1;
+  }
+}
+
+@media screen and (orientation: landscape) and (max-height: 620px) {
+  .deployment-header {
+    min-height: 50px;
+    padding-block: 4px;
+  }
+
+  .deployment-brand .eyebrow {
+    display: none;
+  }
+
+  .deployment-brand h1 {
+    font-size: 17px;
+  }
+
+  .back-to-muster,
+  .deployment-action {
+    min-height: 38px;
+  }
+
+  .deployment-main {
+    width: calc(100% - 12px);
+    gap: 7px;
+    padding: 6px 0 18px;
+  }
+
+  .deployment-intro {
+    min-height: 45px;
+    padding: 6px 10px;
+  }
+
+  .deployment-intro .step-label,
+  .deployment-intro > div:first-child > p:last-child,
+  .deployment-totals span {
+    display: none;
+  }
+
+  .deployment-intro h2 {
+    font-size: 16px;
+  }
+
+  .deployment-totals > div {
+    min-width: 54px;
+    padding: 1px 8px;
+  }
+
+  .deployment-totals strong {
+    font-size: 15px;
+  }
+
+  .deployment-planner {
+    padding: 7px 9px 9px;
+  }
+
+  .planner-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+
+  .planner-heading .step-label,
+  .planner-guidance > p {
+    display: none;
+  }
+
+  .planner-heading h2 {
+    font-size: 16px;
+  }
+
+  .planner-guidance {
+    margin-left: auto;
+  }
+
+  .planner-tools {
+    flex-wrap: nowrap;
+  }
+
+  .zoom-tools button,
+  .selection-tools button {
+    min-height: 36px;
+  }
+
+  .zoom-tools button {
+    min-width: 36px;
+  }
+
+  .deployment-scroll {
+    max-height: calc(100dvh - 165px);
+    padding-bottom: 4px;
   }
 }
 
@@ -730,6 +874,7 @@
 
   .back-to-muster,
   .deployment-action,
+  .zoom-tools button,
   .selection-tools button {
     border-radius: 3px;
     letter-spacing: .025em;
@@ -794,12 +939,14 @@
     letter-spacing: .085em;
   }
 
+  .zoom-tools button,
   .selection-tools button {
     border-color: var(--line-strong);
     background: linear-gradient(180deg, #fff9e9, #eaddc2);
     box-shadow: inset 0 1px rgb(255 255 255 / 70%);
   }
 
+  .zoom-tools button:hover:not(:disabled),
   .selection-tools button:hover:not(:disabled) {
     border-color: var(--gold-dark);
     background: var(--gold-soft);
