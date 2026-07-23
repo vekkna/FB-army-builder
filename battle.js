@@ -233,7 +233,6 @@ function unitCardMarkup({ unit, stats }, index) {
     ${statMarkup(stats, unit.profile)}
     ${resolveMarkup(unit, index)}
     <div class="battle-card-rules">
-      <p>Tap for details</p>
       <div class="battle-rule-row">${unitRuleMarkup(unit)}</div>
     </div>
   </article>`;
