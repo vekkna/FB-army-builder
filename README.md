@@ -41,7 +41,7 @@ The simplest permanent home for this project is GitHub Pages because every file 
 4. Choose **Battle**, then **Send to phone**. Scan the QR code or copy/share the link.
 5. Open the link once while online. The phone can then reopen the army and its rules offline; adding the page to the home screen makes it feel like a small app.
 
-The roster snapshot is compressed into the URL fragment, which browsers do not send to the web host. Anyone who receives the complete link can still read the roster, so treat the link like an exported army file. Current Resolve is deliberately excluded from shared links and is stored only in that device's browser.
+The roster snapshot is compressed into the URL fragment, which browsers do not send to the web host. Profiles, traits, spells, relics, and strategies are stored as compact catalogue references; the phone looks up their full game data from the site. Anyone who receives the complete link can still read the roster, so treat the link like an exported army file. Current Resolve is deliberately excluded from shared links and is stored only in that device's browser.
 
 ## Deliberate repairs to legacy spreadsheet edge cases
 

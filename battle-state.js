@@ -1,4 +1,9 @@
 import {
+  PROFILES,
+  RELICS,
+  SPELLS,
+  STRATEGIES,
+  TRAITS,
   PROFILE_BY_NAME,
   RELIC_BY_NAME,
   SPELL_BY_NAME,
@@ -15,15 +20,26 @@ import {
   traitsConflict,
 } from "./calculator.js";
 
-export const BATTLE_PAYLOAD_VERSION = 1;
+export const BATTLE_PAYLOAD_VERSION = 2;
 export const BATTLE_PROGRESS_VERSION = 1;
 export const BATTLE_PROGRESS_STORAGE_PREFIX = "fantastic-battles-battle-progress:v1:";
 
+const LEGACY_BATTLE_PAYLOAD_VERSION = 1;
 const PAYLOAD_PREFIX = `fb${BATTLE_PAYLOAD_VERSION}`;
 const MAX_ENCODED_PAYLOAD_CHARS = 64_000;
 const MAX_DECODED_PAYLOAD_BYTES = 128_000;
 const MAX_ID_LENGTH = 120;
 const MAX_OPTION_NAME_LENGTH = 120;
+const PROFILE_NAMES = Object.freeze(PROFILES.map(({ name }) => name));
+const TRAIT_NAMES = Object.freeze(TRAITS.map(({ name }) => name));
+const RELIC_NAMES = Object.freeze(RELICS.map(({ name }) => name));
+const SPELL_NAMES = Object.freeze(SPELLS.map(({ name }) => name));
+const STRATEGY_NAMES = Object.freeze(STRATEGIES.map(({ name }) => name));
+const PROFILE_CODES = new Map(PROFILE_NAMES.map((name, index) => [name, index + 1]));
+const TRAIT_CODES = new Map(TRAIT_NAMES.map((name, index) => [name, index + 1]));
+const RELIC_CODES = new Map(RELIC_NAMES.map((name, index) => [name, index + 1]));
+const SPELL_CODES = new Map(SPELL_NAMES.map((name, index) => [name, index + 1]));
+const STRATEGY_CODES = new Map(STRATEGY_NAMES.map((name, index) => [name, index + 1]));
 
 function boundedInteger(raw, fallback, minimum, maximum) {
   const numeric = Number(raw);
@@ -135,30 +151,40 @@ export function normaliseBattleArmy(raw = {}) {
   };
 }
 
+function catalogueCode(codes, name) {
+  return codes.get(name) ?? 0;
+}
+
+function catalogueName(names, rawCode) {
+  const code = Number(rawCode);
+  return Number.isInteger(code) && code >= 1 && code <= names.length
+    ? names[code - 1]
+    : "";
+}
+
 function compactArmy(raw) {
   const army = normaliseBattleArmy(raw);
   return [
     BATTLE_PAYLOAD_VERSION,
     army.armyName,
     army.pointsLimit,
-    army.strategies,
+    army.strategies.map((name) => catalogueCode(STRATEGY_CODES, name)),
     army.units.map((unit) => [
-      unit.id,
       unit.name,
-      unit.profile,
+      catalogueCode(PROFILE_CODES, unit.profile),
       unit.bases,
-      unit.racialTrait,
-      unit.traits,
-      unit.relic,
-      unit.spells.map(({ name, level }) => [name, level]),
+      catalogueCode(TRAIT_CODES, unit.racialTrait),
+      unit.traits.map((name) => catalogueCode(TRAIT_CODES, name)),
+      catalogueCode(RELIC_CODES, unit.relic),
+      unit.spells.map(({ name, level }) => [catalogueCode(SPELL_CODES, name), level]),
     ]),
   ];
 }
 
-function expandCompactArmy(compact) {
+function expandLegacyCompactArmy(compact) {
   if (!Array.isArray(compact)
     || compact.length !== 5
-    || compact[0] !== BATTLE_PAYLOAD_VERSION
+    || compact[0] !== LEGACY_BATTLE_PAYLOAD_VERSION
     || !Array.isArray(compact[3])
     || !Array.isArray(compact[4])
     || !compact[4].every(Array.isArray)) {
@@ -179,6 +205,40 @@ function expandCompactArmy(compact) {
       relic: unit[6],
       spells: Array.isArray(unit[7])
         ? unit[7].filter(Array.isArray).map((spell) => ({ name: spell[0], level: spell[1] }))
+        : [],
+    })),
+  });
+}
+
+function expandCompactArmy(compact) {
+  if (!Array.isArray(compact)
+    || compact.length !== 5
+    || compact[0] !== BATTLE_PAYLOAD_VERSION
+    || !Array.isArray(compact[3])
+    || !Array.isArray(compact[4])
+    || !compact[4].every(Array.isArray)) {
+    return null;
+  }
+
+  return normaliseBattleArmy({
+    armyName: compact[1],
+    pointsLimit: compact[2],
+    strategies: compact[3].map((code) => catalogueName(STRATEGY_NAMES, code)),
+    units: compact[4].map((unit, index) => ({
+      id: `unit-${index + 1}`,
+      name: unit[0],
+      profile: catalogueName(PROFILE_NAMES, unit[1]),
+      bases: unit[2],
+      racialTrait: catalogueName(TRAIT_NAMES, unit[3]),
+      traits: Array.isArray(unit[4])
+        ? unit[4].map((code) => catalogueName(TRAIT_NAMES, code))
+        : [],
+      relic: catalogueName(RELIC_NAMES, unit[5]),
+      spells: Array.isArray(unit[6])
+        ? unit[6].filter(Array.isArray).map((spell) => ({
+          name: catalogueName(SPELL_NAMES, spell[0]),
+          level: spell[1],
+        }))
         : [],
     })),
   });
@@ -292,7 +352,12 @@ export async function decodeArmyPayload(raw) {
   try {
     const token = extractPayloadToken(raw);
     const [prefix, method, encoded, ...extra] = token.split(".");
-    if (prefix !== PAYLOAD_PREFIX
+    const payloadVersion = prefix === PAYLOAD_PREFIX
+      ? BATTLE_PAYLOAD_VERSION
+      : prefix === `fb${LEGACY_BATTLE_PAYLOAD_VERSION}`
+        ? LEGACY_BATTLE_PAYLOAD_VERSION
+        : 0;
+    if (!payloadVersion
       || !["raw", "gz"].includes(method)
       || !encoded
       || extra.length) {
@@ -312,7 +377,10 @@ export async function decodeArmyPayload(raw) {
     }
 
     const json = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    return expandCompactArmy(JSON.parse(json));
+    const compact = JSON.parse(json);
+    return payloadVersion === BATTLE_PAYLOAD_VERSION
+      ? expandCompactArmy(compact)
+      : expandLegacyCompactArmy(compact);
   } catch {
     return null;
   }

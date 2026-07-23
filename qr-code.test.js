@@ -77,7 +77,7 @@ test("all error-correction levels and explicit masks produce valid-sized matrice
 });
 
 test("SVG renderer includes a quiet zone, accessible title, and escaped colours", () => {
-  const qr = encodeQr("https://example.test/battle.html#army=fb1.raw.example");
+  const qr = encodeQr("https://example.test/battle.html#army=fb2.raw.example");
   const svg = qrToSvg(qr, {
     border: 4,
     scale: 2,

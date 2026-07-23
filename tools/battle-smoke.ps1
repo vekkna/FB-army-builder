@@ -119,7 +119,7 @@ try {
   $navigation = Invoke-BrowserExpression -Expression $navigateExpression
   $payload = $navigation.payload
   $smokeName = $navigation.smokeName
-  if ($payload -notmatch "^fb1\.(gz|raw)\.") {
+  if ($payload -notmatch "^fb2\.(gz|raw)\.") {
     throw "Expected a versioned Battle Cards payload."
   }
 
@@ -214,7 +214,7 @@ try {
   if (-not $result.ruleChecks.trait -or -not $result.ruleChecks.spell -or -not $result.ruleChecks.relic -or -not $result.ruleChecks.strategy) {
     throw "Expected traits, spells, relics, and strategies to open full rule dialogs."
   }
-  if ($result.strategyButtons -ne 1 -or $result.shareLink -notmatch "battle\.html#army=fb1\.(gz|raw)\.") {
+  if ($result.strategyButtons -ne 1 -or $result.shareLink -notmatch "battle\.html#army=fb2\.(gz|raw)\.") {
     throw "Expected a self-contained share link with the selected strategy."
   }
   if (-not $result.qrPresent -or -not $result.touchTargets) {

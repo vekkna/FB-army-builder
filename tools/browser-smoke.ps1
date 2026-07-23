@@ -287,7 +287,7 @@ try {
   if ($result.hasPerBaseLabel) { throw "Expected points labels to omit '/ base'." }
   if (-not $result.cardsDisabledWhenEmpty -or -not $result.cardsButtonEnabled) { throw "Expected Cards to be disabled for an empty roster and enabled after adding units." }
   if (-not $result.rulesDisabledWhenEmpty -or -not $result.rulesButtonEnabled) { throw "Expected Rules to be disabled with no selected rules and enabled after building the army." }
-  if (-not $result.battleDisabledWhenEmpty -or -not $result.battleButtonEnabled -or $result.battlePayload -notmatch "^fb1\.(gz|raw)\.") { throw "Expected Battle to enable for a roster and create a versioned phone payload." }
+  if (-not $result.battleDisabledWhenEmpty -or -not $result.battleButtonEnabled -or $result.battlePayload -notmatch "^fb2\.(gz|raw)\.") { throw "Expected Battle to enable for a roster and create a versioned phone payload." }
   if ($result.cardCount -ne 2 -or $result.cardPdfType -ne "application/pdf" -or $result.cardPdfSize -lt 1000) { throw "Expected two generated cards in a non-empty PDF." }
   if ($result.downloadedCardFile -ne "fantastic-battles-army-unit-cards.pdf") { throw "Expected the Cards action to download the army-named PDF." }
   if ($result.rulesCount -ne 4 -or $result.rulesPdfType -ne "application/pdf" -or $result.rulesPdfSize -lt 1000) { throw "Expected four unique selected rules in a non-empty PDF." }

@@ -39,6 +39,21 @@ const army = (overrides = {}) => ({
   ...overrides,
 });
 
+function sharedArmyExpected(raw) {
+  const normalised = normaliseBattleArmy(raw);
+  return {
+    ...normalised,
+    units: normalised.units.map((entry, index) => ({
+      ...entry,
+      id: `unit-${index + 1}`,
+    })),
+  };
+}
+
+function base64Url(value) {
+  return btoa(value).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
+}
+
 test("battle armies retain only valid, bounded roster data and stable unique ids", () => {
   const normalised = normaliseBattleArmy(army({
     pointsLimit: 999_999_999,
@@ -93,10 +108,10 @@ test("battle armies retain only valid, bounded roster data and stable unique ids
 });
 
 test("raw URL payloads round-trip the normalised army", async () => {
-  const expected = normaliseBattleArmy(army());
+  const expected = sharedArmyExpected(army());
   const payload = await encodeArmyPayload(army(), { compress: false });
 
-  assert.match(payload, /^fb1\.raw\.[A-Za-z0-9_-]+$/u);
+  assert.match(payload, /^fb2\.raw\.[A-Za-z0-9_-]+$/u);
   assert.deepEqual(await decodeArmyPayload(payload), expected);
   assert.deepEqual(
     await decodeArmyPayload(`https://example.test/battle.html#army=${payload}`),
@@ -109,8 +124,56 @@ test("gzip URL payloads round-trip when compression streams are available", {
     || typeof globalThis.DecompressionStream !== "function",
 }, async () => {
   const payload = await encodeArmyPayload(army());
-  assert.match(payload, /^fb1\.gz\.[A-Za-z0-9_-]+$/u);
-  assert.deepEqual(await decodeArmyPayload(`#army=${payload}`), normaliseBattleArmy(army()));
+  assert.match(payload, /^fb2\.gz\.[A-Za-z0-9_-]+$/u);
+  assert.deepEqual(await decodeArmyPayload(`#army=${payload}`), sharedArmyExpected(army()));
+});
+
+test("catalogue-backed data is represented by small codes rather than repeated names", async () => {
+  const payload = await encodeArmyPayload(army(), { compress: false });
+  const encoded = payload.split(".")[2];
+  const standard = encoded.replaceAll("-", "+").replaceAll("_", "/");
+  const json = atob(`${standard}${"=".repeat((4 - standard.length % 4) % 4)}`);
+
+  assert.ok(json.includes("Northern Host"));
+  assert.ok(json.includes("Iron Guard"));
+  assert.ok(!json.includes("Formed company"));
+  assert.ok(!json.includes("Doughty"));
+  assert.ok(!json.includes("Ambush"));
+  assert.ok(!json.includes("unit-a"));
+});
+
+test("version 1 links remain readable", async () => {
+  const legacyCompact = [
+    1,
+    "Legacy Host",
+    1_000,
+    ["Ambush"],
+    [[
+      "legacy-unit",
+      "Old Guard",
+      "Formed company",
+      3,
+      "Fast",
+      ["Doughty"],
+      "",
+      [],
+    ]],
+  ];
+  const payload = `fb1.raw.${base64Url(JSON.stringify(legacyCompact))}`;
+  const decoded = await decodeArmyPayload(payload);
+
+  assert.equal(decoded.armyName, "Legacy Host");
+  assert.deepEqual(decoded.strategies, ["Ambush"]);
+  assert.deepEqual(decoded.units[0], {
+    id: "legacy-unit",
+    name: "Old Guard",
+    profile: "Formed company",
+    bases: 3,
+    racialTrait: "Fast",
+    traits: ["Doughty"],
+    relic: "",
+    spells: [],
+  });
 });
 
 test("a fully populated 25-unit roster remains small enough for a local QR link", {
@@ -143,20 +206,20 @@ test("a fully populated 25-unit roster remains small enough for a local QR link"
     new TextEncoder().encode(completeUrl).length <= QR_BYTE_CAPACITY.L,
     `Expected the maximum roster link to fit a Version 40-L QR (${completeUrl.length} characters)`,
   );
-  assert.deepEqual(await decodeArmyPayload(payload), normaliseBattleArmy(maximumRoster));
+  assert.deepEqual(await decodeArmyPayload(payload), sharedArmyExpected(maximumRoster));
 });
 
 test("payload decoding rejects malformed, truncated, future, and oversized data", async () => {
-  const futureJson = JSON.stringify([2, "Future", 1000, [], []]);
+  const futureJson = JSON.stringify([3, "Future", 1000, [], []]);
   const futureBody = btoa(futureJson).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
   const malformed = [
     "",
     "not-a-payload",
-    "fb2.raw.Zm9v",
+    "fb3.raw.Zm9v",
     "fb1.zip.Zm9v",
     "fb1.raw.!!!!",
     "fb1.raw.WzEs",
-    `fb1.raw.${futureBody}`,
+    `fb3.raw.${futureBody}`,
     `fb1.raw.${"a".repeat(64_001)}`,
   ];
 
