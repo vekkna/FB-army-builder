@@ -7,10 +7,17 @@ import {
   createDeploymentPlan,
   deploymentDataFromPieces,
   deploymentPiecesInRect,
-  deploymentSpellSummary,
   sanitiseDeploymentData,
 } from "./deployment.js?v=spell-key-2";
-import { calculateUnit } from "./calculator.js";
+import {
+  RELIC_BY_NAME,
+  SPELL_BY_NAME,
+  TRAIT_BY_NAME,
+} from "./data.js";
+import {
+  armyRosterStats,
+  calculateUnit,
+} from "./calculator.js";
 
 const MUSTER_STORAGE_KEY = "fantastic-battles-muster:v1";
 const byId = (id) => document.getElementById(id);
@@ -37,6 +44,15 @@ const elements = {
   zoomLevel: byId("zoom-level"),
   reset: byId("reset-deployment"),
   print: byId("print-deployment"),
+  unitDialog: byId("deployment-unit-dialog"),
+  unitDialogTitle: byId("deployment-unit-dialog-title"),
+  unitDialogMeta: byId("deployment-unit-dialog-meta"),
+  unitDialogCopy: byId("deployment-unit-dialog-copy"),
+  ruleDialog: byId("deployment-rule-dialog"),
+  ruleDialogKind: byId("deployment-rule-dialog-kind"),
+  ruleDialogTitle: byId("deployment-rule-dialog-title"),
+  ruleDialogMeta: byId("deployment-rule-dialog-meta"),
+  ruleDialogCopy: byId("deployment-rule-dialog-copy"),
 };
 
 const MIN_CANVAS_WIDTH = 1038;
@@ -45,10 +61,12 @@ const MAX_ZOOM = 2.5;
 const ZOOM_FACTOR = 1.25;
 let army = { armyName: "", units: [] };
 let plan = { pieces: [], summons: [], overflow: false };
+let unitsById = new Map();
 let piecesById = new Map();
 let markerElementsById = new Map();
 let selectedPieceIds = new Set();
 let drag = null;
+let suppressedMarkerClick = null;
 let canvasBaseWidth = MIN_CANVAS_WIDTH;
 let zoom = 1;
 let fitMode = window.innerWidth <= 700 || window.innerHeight <= 500;
@@ -104,15 +122,142 @@ function pieceDescription(piece) {
   return `${piece.label}, ${piece.kind === "character" ? "character" : "company base"}${part}${relic}`;
 }
 
-function makePieceElement(piece) {
+const STAT_TITLES = Object.freeze({
+  RES: "Resolve per base",
+  MOV: "Movement",
+  MEL: "Melee",
+  SHT: "Shooting short/long",
+  DEF: "Defence",
+  COM: "Command",
+});
+
+function unitRules(unit) {
+  const rules = [];
+  if (unit?.racialTrait && TRAIT_BY_NAME.has(unit.racialTrait)) {
+    rules.push({ type: "trait", kind: "Racial trait", name: unit.racialTrait, level: 0 });
+  }
+  for (const name of Array.isArray(unit?.traits) ? unit.traits : []) {
+    if (TRAIT_BY_NAME.has(name)) rules.push({ type: "trait", kind: "Trait", name, level: 0 });
+  }
+  for (const selection of Array.isArray(unit?.spells) ? unit.spells : []) {
+    if (!SPELL_BY_NAME.has(selection?.name)) continue;
+    rules.push({
+      type: "spell",
+      kind: "Spell",
+      name: selection.name,
+      level: Math.max(1, Math.round(Number(selection.level) || 1)),
+    });
+  }
+  if (unit?.relic && RELIC_BY_NAME.has(unit.relic)) {
+    rules.push({ type: "relic", kind: "Relic", name: unit.relic, level: 0 });
+  }
+  return rules;
+}
+
+function ruleDetails(type, name, level = 0) {
+  if (type === "trait") {
+    const rule = TRAIT_BY_NAME.get(name);
+    return rule ? {
+      kind: "Trait",
+      title: rule.name,
+      meta: "",
+      description: rule.description,
+    } : null;
+  }
+  if (type === "relic") {
+    const rule = RELIC_BY_NAME.get(name);
+    return rule ? {
+      kind: "Relic",
+      title: rule.name,
+      meta: "",
+      description: rule.description,
+    } : null;
+  }
+  if (type === "spell") {
+    const rule = SPELL_BY_NAME.get(name);
+    return rule ? {
+      kind: "Spell",
+      title: rule.name,
+      meta: `${level ? `Selected at level ${level} · ` : ""}Roll needed: ${rule.difficulty}${rule.errata ? " · Errata applied" : ""}`,
+      description: rule.description,
+    } : null;
+  }
+  return null;
+}
+
+function createRuleButton(rule, className = "") {
+  const details = ruleDetails(rule.type, rule.name, rule.level);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `deployment-rule-button${className ? ` ${className}` : ""}`;
+  button.dataset.deploymentRuleType = rule.type;
+  button.dataset.deploymentRuleName = rule.name;
+  if (rule.level) button.dataset.deploymentRuleLevel = String(rule.level);
+  button.setAttribute("aria-label", `Read the ${rule.name} ${rule.kind.toLocaleLowerCase()} rule`);
+  button.title = details
+    ? [details.meta, details.description].filter(Boolean).join("\n\n")
+    : `Read the ${rule.name} rule`;
+
+  const kind = document.createElement("small");
+  kind.textContent = rule.kind;
+  const label = document.createElement("span");
+  label.textContent = `${rule.name}${rule.level ? ` L${rule.level}` : ""}`;
+  button.append(kind, label);
+  return button;
+}
+
+function createStatGrid(unit, className = "") {
+  const grid = document.createElement("div");
+  grid.className = `deployment-stat-grid${className ? ` ${className}` : ""}`;
+  if (!unit) return grid;
+  const calculated = calculateUnit(unit);
+  const stats = armyRosterStats(calculated, unit.profile);
+  grid.style.setProperty("--deployment-stat-count", String(stats.length));
+  for (const stat of stats) {
+    const item = document.createElement("span");
+    item.className = "deployment-stat";
+    item.title = STAT_TITLES[stat.label] ?? stat.label;
+    const label = document.createElement("small");
+    label.textContent = stat.label;
+    const value = document.createElement("strong");
+    value.textContent = String(stat.value);
+    item.append(label, value);
+    grid.append(item);
+  }
+  return grid;
+}
+
+function unitTooltip(piece, unit) {
+  if (!unit) return pieceDescription(piece);
+  const calculated = calculateUnit(unit);
+  const stats = armyRosterStats(calculated, unit.profile)
+    .map(({ label, value }) => `${label} ${value}`)
+    .join(" · ");
+  const rules = unitRules(unit);
+  const traits = rules.filter(({ type }) => type === "trait").map(({ name }) => name);
+  const spells = rules
+    .filter(({ type }) => type === "spell")
+    .map(({ name, level }) => `${name} L${level}`);
+  const relic = rules.find(({ type }) => type === "relic")?.name;
+  return [
+    pieceDescription(piece),
+    stats,
+    traits.length ? `Traits: ${traits.join(", ")}` : "",
+    spells.length ? `Spells: ${spells.join(", ")}` : "",
+    relic ? `Relic: ${relic}` : "",
+    "Tap or click for unit details.",
+  ].filter(Boolean).join("\n");
+}
+
+function makePieceElement(piece, sourceUnit) {
   const marker = document.createElement("button");
   marker.type = "button";
   marker.className = `deployment-piece is-${piece.kind}${piece.characterTrait ? " is-character-company" : ""}`;
   marker.dataset.pieceId = piece.id;
   marker.style.setProperty("--unit-hue", hueFor(piece.unitId));
-  marker.setAttribute("aria-label", `${pieceDescription(piece)}. Drag to reposition.`);
+  marker.setAttribute("aria-label", `${pieceDescription(piece)}. Tap for unit details or drag to reposition.`);
   marker.setAttribute("aria-pressed", "false");
-  marker.title = pieceDescription(piece);
+  marker.title = unitTooltip(piece, sourceUnit);
   applyPiecePosition(marker, piece);
 
   const code = document.createElement("span");
@@ -173,8 +318,7 @@ function renderLegend() {
   elements.legend.replaceChildren();
   for (const pieces of groupedPieces()) {
     const first = pieces[0];
-    const sourceUnit = army.units.find((unit) => String(unit?.id) === first.unitId);
-    const spellSummary = deploymentSpellSummary(sourceUnit);
+    const sourceUnit = unitsById.get(first.unitId);
     const item = document.createElement("li");
     item.style.setProperty("--unit-hue", hueFor(first.unitId));
 
@@ -191,22 +335,72 @@ function renderLegend() {
       ? `${pieces.length} ${pieces.length === 1 ? "character" : "characters"}`
       : `${pieces.length} × 6 cm ${pieces.length === 1 ? "base" : "bases"}`;
     detail.textContent = `${first.profile} · ${markerLabel}${first.characterTrait ? ` · ${first.characterTrait}` : ""}`;
-    copy.append(name, detail);
-    if (first.relic) {
-      const relic = document.createElement("span");
-      relic.className = "legend-relic";
-      relic.textContent = `Relic: ${first.relic}`;
-      copy.append(relic);
-    }
-    if (spellSummary) {
-      const spells = document.createElement("span");
-      spells.className = "legend-spells";
-      spells.textContent = spellSummary;
-      copy.append(spells);
+    copy.append(name, detail, createStatGrid(sourceUnit, "is-legend"));
+
+    const rules = unitRules(sourceUnit);
+    if (rules.length) {
+      const ruleList = document.createElement("span");
+      ruleList.className = "legend-rules";
+      for (const rule of rules) ruleList.append(createRuleButton(rule, "is-legend"));
+      copy.append(ruleList);
     }
     item.append(key, copy);
     elements.legend.append(item);
   }
+}
+
+function appendDescription(container, description) {
+  container.replaceChildren();
+  for (const paragraphText of String(description || "").split(/\n{2,}/u)) {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = paragraphText;
+    container.append(paragraph);
+  }
+}
+
+function openRuleInfo(type, name, level = 0) {
+  const details = ruleDetails(type, name, level);
+  if (!details) return;
+  elements.ruleDialogKind.textContent = details.kind;
+  elements.ruleDialogTitle.textContent = details.title;
+  elements.ruleDialogMeta.textContent = details.meta;
+  elements.ruleDialogMeta.hidden = !details.meta;
+  appendDescription(elements.ruleDialogCopy, details.description);
+  if (!elements.ruleDialog.open) elements.ruleDialog.showModal();
+  byId("deployment-rule-dialog-close").focus();
+}
+
+function openUnitInfo(unitId) {
+  const unit = unitsById.get(String(unitId));
+  if (!unit) return;
+  const title = String(unit.name || "").trim() || String(unit.profile || "Unit");
+  const bases = Math.max(0, Math.round(Number(unit.bases) || 0));
+  elements.unitDialogTitle.textContent = title;
+  elements.unitDialogMeta.textContent = `${unit.profile} · ${bases} ${bases === 1 ? "base" : "bases"}`;
+  elements.unitDialogCopy.replaceChildren();
+
+  const statsHeading = document.createElement("h3");
+  statsHeading.textContent = "Stats";
+  elements.unitDialogCopy.append(statsHeading, createStatGrid(unit, "is-dialog"));
+
+  const rulesHeading = document.createElement("h3");
+  rulesHeading.textContent = "Traits, spells and relics";
+  elements.unitDialogCopy.append(rulesHeading);
+  const rules = unitRules(unit);
+  if (rules.length) {
+    const ruleList = document.createElement("div");
+    ruleList.className = "deployment-dialog-rules";
+    for (const rule of rules) ruleList.append(createRuleButton(rule, "is-dialog"));
+    elements.unitDialogCopy.append(ruleList);
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "deployment-dialog-empty";
+    empty.textContent = "No traits, spells, or relic.";
+    elements.unitDialogCopy.append(empty);
+  }
+
+  if (!elements.unitDialog.open) elements.unitDialog.showModal();
+  byId("deployment-unit-dialog-close").focus();
 }
 
 function renderSummons() {
@@ -317,6 +511,7 @@ function centreViewportOnPieces() {
 }
 
 function render() {
+  unitsById = new Map(army.units.map((unit, index) => [String(unit?.id || `unit-${index}`), unit]));
   piecesById = new Map(plan.pieces.map((piece) => [piece.id, piece]));
   elements.title.textContent = army.armyName.trim() || "Untitled army";
   document.title = `${army.armyName.trim() || "Untitled army"} · Deployment Plan`;
@@ -332,7 +527,7 @@ function render() {
   markerElementsById = new Map();
   const fragment = document.createDocumentFragment();
   for (const piece of plan.pieces) {
-    const marker = makePieceElement(piece);
+    const marker = makePieceElement(piece, unitsById.get(piece.unitId));
     markerElementsById.set(piece.id, marker);
     fragment.append(marker);
   }
@@ -606,6 +801,8 @@ elements.zone.addEventListener("pointerdown", (event) => {
     pointerId: event.pointerId,
     capture: marker,
     start: pointer,
+    startClient: { x: event.clientX, y: event.clientY },
+    tapCandidate: true,
     pieces: selectedPieces,
     origins: new Map(selectedPieces.map((candidate) => [candidate.id, { x: candidate.x, y: candidate.y }])),
     startPieces: selectedPieces.map((candidate) => ({ ...candidate })),
@@ -635,6 +832,10 @@ elements.zone.addEventListener("pointermove", (event) => {
   const delta = pieceDragDelta(drag, sample);
   drag.pendingDelta = delta;
   drag.moved ||= Math.abs(delta.x) > .01 || Math.abs(delta.y) > .01;
+  drag.tapCandidate &&= Math.hypot(
+    sample.clientX - drag.startClient.x,
+    sample.clientY - drag.startClient.y,
+  ) < 6;
   scheduleDragFrame(drag);
 });
 
@@ -667,18 +868,45 @@ function endDrag(event, cancelled = false) {
     return;
   }
 
-  const finalDelta = cancelled ? { x: 0, y: 0 } : pieceDragDelta(activeDrag, latestPointerSample(event));
-  if (!cancelled) commitPieceDrag(activeDrag, finalDelta);
+  const finalSample = latestPointerSample(event);
+  const tapped = !cancelled
+    && activeDrag.tapCandidate
+    && Math.hypot(
+      finalSample.clientX - activeDrag.startClient.x,
+      finalSample.clientY - activeDrag.startClient.y,
+    ) < 6;
+  const finalDelta = cancelled || tapped ? { x: 0, y: 0 } : pieceDragDelta(activeDrag, finalSample);
+  if (!cancelled && !tapped) commitPieceDrag(activeDrag, finalDelta);
   clearPieceDragVisuals(activeDrag);
   if (cancelled) elements.status.textContent = "Move cancelled.";
+  else if (tapped) {
+    const tappedPiece = piecesById.get(activeDrag.capture.dataset.pieceId);
+    elements.status.textContent = `${tappedPiece?.label || "Unit"} details opened.`;
+    openUnitInfo(tappedPiece?.unitId);
+  }
   else if (activeDrag.pieces.length > 1) elements.status.textContent = `Moved ${activeDrag.pieces.length} selected markers.`;
   else announce(activeDrag.pieces[0]);
+  suppressedMarkerClick = activeDrag.capture;
+  window.setTimeout(() => {
+    if (suppressedMarkerClick === activeDrag.capture) suppressedMarkerClick = null;
+  }, 500);
   drag = null;
-  if (!cancelled) persistDeployment();
+  if (!cancelled && !tapped) persistDeployment();
 }
 
 elements.zone.addEventListener("pointerup", endDrag);
 elements.zone.addEventListener("pointercancel", (event) => endDrag(event, true));
+elements.zone.addEventListener("click", (event) => {
+  const marker = event.target.closest(".deployment-piece");
+  if (!marker) return;
+  if (suppressedMarkerClick === marker) {
+    suppressedMarkerClick = null;
+    event.preventDefault();
+    return;
+  }
+  const piece = piecesById.get(marker.dataset.pieceId);
+  openUnitInfo(piece?.unitId);
+});
 
 elements.clearSelection.addEventListener("click", () => {
   clearSelection();
@@ -713,6 +941,24 @@ elements.reset.addEventListener("click", () => {
 });
 
 elements.print.addEventListener("click", () => window.print());
+
+document.addEventListener("click", (event) => {
+  const trigger = event.target.closest("[data-deployment-rule-type]");
+  if (!trigger) return;
+  openRuleInfo(
+    trigger.dataset.deploymentRuleType,
+    trigger.dataset.deploymentRuleName,
+    Number(trigger.dataset.deploymentRuleLevel) || 0,
+  );
+});
+
+byId("deployment-unit-dialog-close").addEventListener("click", () => elements.unitDialog.close());
+byId("deployment-rule-dialog-close").addEventListener("click", () => elements.ruleDialog.close());
+for (const dialog of [elements.unitDialog, elements.ruleDialog]) {
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+}
 
 window.addEventListener("storage", (event) => {
   if (event.key === MUSTER_STORAGE_KEY || event.key === DEPLOYMENT_STORAGE_KEY) loadCurrentPlan(true);

@@ -514,7 +514,7 @@
 
 .legend-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -524,7 +524,7 @@
 .legend-list li {
   display: flex;
   min-width: 0;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
   padding: 8px 9px;
   background: var(--surface-soft);
@@ -556,32 +556,153 @@
   gap: 2px;
 }
 
-.legend-copy strong,
-.legend-copy small {
+.legend-copy > strong,
+.legend-copy > small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.legend-copy strong {
+.legend-copy > strong {
   font-size: 13px;
 }
 
-.legend-copy small {
+.legend-copy > small {
   color: var(--muted);
   font-size: 10px;
 }
 
-.legend-relic,
-.legend-spells {
-  color: var(--gold-dark);
-  font-size: 10px;
-  font-weight: 750;
-  line-height: 1.15;
+.deployment-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--deployment-stat-count, 5), minmax(0, 1fr));
+  overflow: hidden;
+  background: rgb(255 255 255 / 34%);
+  border: 1px solid var(--line);
+  border-radius: 5px;
 }
 
-.legend-spells {
-  color: var(--forest-700);
+.deployment-stat {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  gap: 1px;
+  padding: 4px 3px;
+  border-left: 1px solid var(--line);
+  line-height: 1;
+}
+
+.deployment-stat:first-child {
+  border-left: 0;
+}
+
+.deployment-stat small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .05em;
+}
+
+.deployment-stat strong {
+  font-size: 12px;
+}
+
+.legend-rules,
+.deployment-dialog-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.deployment-rule-button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 27px;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  color: var(--forest-800);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: inherit;
+  line-height: 1.15;
+  text-align: left;
+  cursor: help;
+}
+
+.deployment-rule-button:hover,
+.deployment-rule-button:focus-visible {
+  color: var(--forest-950);
+  background: var(--gold-soft);
+  border-color: var(--gold-dark);
+}
+
+.deployment-rule-button small {
+  flex: 0 0 auto;
+  color: var(--gold-dark);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.deployment-rule-button span {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deployment-info-dialog {
+  max-height: min(720px, calc(100dvh - 28px));
+}
+
+.deployment-unit-dialog-copy h3 {
+  margin: 15px 0 7px;
+  color: var(--forest-800);
+  font-size: 12px;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.deployment-unit-dialog-copy h3:first-child {
+  margin-top: 0;
+}
+
+.deployment-stat-grid.is-dialog {
+  background: var(--surface-soft);
+}
+
+.deployment-stat-grid.is-dialog .deployment-stat {
+  min-height: 54px;
+}
+
+.deployment-stat-grid.is-dialog .deployment-stat small {
+  font-size: 9px;
+}
+
+.deployment-stat-grid.is-dialog .deployment-stat strong {
+  font-size: 18px;
+}
+
+.deployment-rule-button.is-dialog {
+  min-height: 38px;
+  padding-inline: 11px;
+}
+
+.deployment-rule-button.is-dialog small {
+  font-size: 9px;
+}
+
+.deployment-rule-button.is-dialog span {
+  font-size: 12px;
+}
+
+.deployment-dialog-empty {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
 }
 
 .summons-panel {
@@ -740,6 +861,11 @@
 
   .zoom-tools button {
     min-width: 40px;
+  }
+
+  .deployment-rule-button {
+    min-height: 40px;
+    padding-inline: 9px;
   }
 
   .deployment-scroll {
@@ -1259,10 +1385,49 @@
     font-size: 5pt;
   }
 
-  .legend-relic,
-  .legend-spells {
-    color: #000;
+  .deployment-stat-grid {
+    background: #fff;
+    border: .12mm solid #aaa;
+    border-radius: 0;
+  }
+
+  .deployment-stat {
+    gap: 0;
+    padding: .3mm .2mm;
+    border-color: #aaa;
+  }
+
+  .deployment-stat small {
+    color: #333;
+    font-size: 3.8pt;
+  }
+
+  .deployment-stat strong {
     font-size: 5pt;
+  }
+
+  .legend-rules {
+    gap: .3mm .7mm;
+  }
+
+  .deployment-rule-button {
+    min-height: 0;
+    gap: .4mm;
+    padding: 0;
+    color: #000;
+    background: #fff;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .deployment-rule-button small,
+  .deployment-rule-button span {
+    color: #000;
+    font-size: 4.5pt;
+  }
+
+  .deployment-info-dialog {
+    display: none !important;
   }
 
   .summons-panel {

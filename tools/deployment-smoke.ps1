@@ -1,6 +1,8 @@
 param(
   [int]$DebugPort = 9222,
   [string]$ScreenshotPath = "",
+  [ValidateSet("page", "unit", "rule")]
+  [string]$ScreenshotView = "page",
   [int]$ViewportWidth = 1440,
   [int]$ViewportHeight = 1000
 )
@@ -71,6 +73,43 @@ try {
   const squareLayer = Number(getComputedStyle(square).zIndex);
   const characterLayer = Number(getComputedStyle(circle).zIndex);
   square.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 70, pointerType: 'touch', button: 0,
+    clientX: squareBounds.left + squareBounds.width / 2,
+    clientY: squareBounds.top + squareBounds.height / 2,
+  }));
+  square.dispatchEvent(new PointerEvent('pointerup', {
+    bubbles: true, cancelable: true, pointerId: 70, pointerType: 'touch', button: 0,
+    clientX: squareBounds.left + squareBounds.width / 2,
+    clientY: squareBounds.top + squareBounds.height / 2,
+  }));
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  const unitDialog = document.querySelector('#deployment-unit-dialog');
+  const unitDialogOpenedFromTouch = unitDialog.open;
+  const unitDialogTitle = document.querySelector('#deployment-unit-dialog-title').textContent;
+  const unitDialogStats = unitDialog.querySelectorAll('.deployment-stat').length;
+  const unitDialogRuleNames = [...unitDialog.querySelectorAll('[data-deployment-rule-name]')]
+    .map((button) => button.dataset.deploymentRuleName);
+  unitDialog.close();
+  circle.click();
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  const characterDialogRuleNames = [...unitDialog.querySelectorAll('[data-deployment-rule-name]')]
+    .map((button) => button.dataset.deploymentRuleName);
+  unitDialog.close();
+
+  const legendRuleButtons = [...document.querySelectorAll('#deployment-legend [data-deployment-rule-type]')];
+  const legendRuleTypes = [...new Set(legendRuleButtons.map((button) => button.dataset.deploymentRuleType))];
+  const legendRuleNames = legendRuleButtons.map((button) => button.dataset.deploymentRuleName);
+  const traitRuleButton = legendRuleButtons.find((button) => button.dataset.deploymentRuleName === 'Doughty');
+  const traitTooltip = traitRuleButton?.title || '';
+  traitRuleButton?.click();
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  const ruleDialog = document.querySelector('#deployment-rule-dialog');
+  const ruleDialogOpened = ruleDialog.open;
+  const ruleDialogTitle = document.querySelector('#deployment-rule-dialog-title').textContent;
+  const ruleDialogCopy = document.querySelector('#deployment-rule-dialog-copy').textContent;
+  ruleDialog.close();
+
+  square.dispatchEvent(new PointerEvent('pointerdown', {
     bubbles: true, cancelable: true, pointerId: 71, pointerType: 'mouse', button: 0,
     clientX: squareBounds.left + squareBounds.width / 2,
     clientY: squareBounds.top + squareBounds.height / 2,
@@ -80,6 +119,7 @@ try {
     clientX: bounds.right - 1, clientY: bounds.bottom - 1,
   }));
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  await new Promise((resolve) => setTimeout(resolve, 30));
   const liveTransform = getComputedStyle(square).transform;
   const liveInlineTransform = square.style.transform;
   const liveDraggingClass = square.classList.contains('is-dragging');
@@ -198,7 +238,20 @@ try {
     circles: zone.querySelectorAll('.deployment-piece.is-character').length,
     legendItems: document.querySelectorAll('#deployment-legend > li').length,
     legendText: document.querySelector('#deployment-legend').textContent,
+    legendStats: document.querySelectorAll('#deployment-legend .deployment-stat').length,
+    legendRuleTypes,
+    legendRuleNames,
+    traitTooltip,
+    unitDialogOpenedFromTouch,
+    unitDialogTitle,
+    unitDialogStats,
+    unitDialogRuleNames,
+    ruleDialogOpened,
+    ruleDialogTitle,
+    ruleDialogCopy,
+    companyTooltip: square.title,
     characterTooltip: circle.title,
+    characterDialogRuleNames,
     ratio: bounds.width / bounds.height,
     squareRatio: squareBounds.width / squareBounds.height,
     squareLayer,
@@ -237,9 +290,13 @@ try {
 
   if ($value.pieces -ne 5 -or $value.companies -ne 4 -or $value.characters -ne 1) { throw "Expected four company bases and one character." }
   if ($value.squares -ne 4 -or $value.circles -ne 1 -or $value.legendItems -ne 2) { throw "Deployment DOM markers or legend were incorrect." }
-  if ($value.legendText -notlike "*Relic: Mystical Tome of Revelation*") { throw "Expected character relics in the deployment key." }
-  if ($value.legendText -notlike "*Spells: Bless L2, Blink L1, Summon L1*" -and $value.legendText -notlike "*Spells: Bless L3, Bless L1*") { throw "Expected character spells in the deployment key. Found: $($value.legendText)" }
-  if ($value.characterTooltip -notlike "*relic: Mystical Tome of Revelation*") { throw "Expected character relics in marker tooltips." }
+  if ($value.legendStats -ne 11) { throw "Expected complete unit stats in both deployment key entries. Found $($value.legendStats)." }
+  if ($value.legendRuleTypes -notcontains "trait" -or $value.legendRuleTypes -notcontains "spell" -or $value.legendRuleTypes -notcontains "relic") { throw "Expected tappable traits, spells, and relics in the deployment key." }
+  if ($value.legendRuleNames -notcontains "Doughty" -or $value.legendRuleNames -notcontains "Shieldwall" -or $value.legendRuleNames -notcontains "Mystical Tome of Revelation" -or $value.legendRuleNames -notcontains "Bless") { throw "Expected all selected rule names in the deployment key." }
+  if (-not $value.unitDialogOpenedFromTouch -or $value.unitDialogTitle -ne "The Iron Guard" -or $value.unitDialogStats -ne 5 -or $value.unitDialogRuleNames -notcontains "Doughty" -or $value.unitDialogRuleNames -notcontains "Shieldwall") { throw "Expected a marker tap to open that unit's stats and rule names." }
+  if ($value.characterDialogRuleNames -notcontains "Mystical Tome of Revelation" -or $value.characterDialogRuleNames -notcontains "Bless") { throw "Expected character marker details to include selected spells and relics." }
+  if (-not $value.ruleDialogOpened -or $value.ruleDialogTitle -ne "Doughty" -or $value.ruleDialogCopy -notlike "*Resolve*" -or $value.traitTooltip -notlike "*Resolve*") { throw "Expected key taps and tooltips to expose rule descriptions." }
+  if ($value.companyTooltip -notlike "*RES 5*" -or $value.companyTooltip -notlike "*Traits:*Doughty*Shieldwall*" -or $value.characterTooltip -notlike "*RES 2*" -or $value.characterTooltip -notlike "*relic: Mystical Tome of Revelation*" -or $value.characterTooltip -notlike "*Spells:*Bless*") { throw "Expected stats and selected rules in marker tooltips." }
   if ([Math]::Abs($value.ratio - (13 / 3)) -gt .02 -or [Math]::Abs($value.squareRatio - 1) -gt .02) { throw "Deployment geometry was not proportional (zone $($value.ratio), marker $($value.squareRatio))." }
   if ($value.characterLayer -le $value.squareLayer) { throw "Expected character markers to sit above company bases." }
   if ($value.movedX -ne 150 -or $value.movedY -ne 30 -or $value.savedX -ne 150 -or $value.savedY -ne 30) { throw "Drag did not clamp and persist at the zone boundary." }
@@ -285,6 +342,15 @@ try {
     awaitPromise = $true
   })
   if ($ScreenshotPath) {
+    if ($ScreenshotView -eq "unit") {
+      [void](Invoke-CdpCommand -Method "Runtime.evaluate" -Params @{
+        expression = "document.querySelector('.deployment-piece.is-company').click()"
+      })
+    } elseif ($ScreenshotView -eq "rule") {
+      [void](Invoke-CdpCommand -Method "Runtime.evaluate" -Params @{
+        expression = "document.querySelector('#deployment-legend [data-deployment-rule-type]').click()"
+      })
+    }
     [void](Invoke-CdpCommand -Method "Runtime.evaluate" -Params @{
       expression = "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
       awaitPromise = $true

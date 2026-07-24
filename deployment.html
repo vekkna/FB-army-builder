@@ -10,7 +10,7 @@
     <link rel="icon" href="app-icon.svg" type="image/svg+xml">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="deployment.css?v=zoom-5">
+    <link rel="stylesheet" href="deployment.css?v=unit-details-1">
   </head>
 
   <body class="deployment-page">
@@ -106,7 +106,41 @@
         <ul id="summons-list"></ul>
       </section>
     </main>
-    <script type="module" src="deployment-page.js?v=zoom-5"></script>
+    <dialog class="trait-dialog rule-info-dialog deployment-info-dialog" id="deployment-unit-dialog"
+      aria-labelledby="deployment-unit-dialog-title">
+      <div class="dialog-shell rule-info-dialog-shell">
+        <header class="dialog-header">
+          <div>
+            <p class="step-label">Deployed unit</p>
+            <h2 id="deployment-unit-dialog-title">Unit details</h2>
+          </div>
+          <button class="dialog-close" id="deployment-unit-dialog-close" type="button"
+            aria-label="Close unit details">×</button>
+        </header>
+        <div class="rule-info-body">
+          <p class="rule-info-meta" id="deployment-unit-dialog-meta"></p>
+          <div class="rule-info-copy deployment-unit-dialog-copy" id="deployment-unit-dialog-copy"></div>
+        </div>
+      </div>
+    </dialog>
+    <dialog class="trait-dialog rule-info-dialog deployment-info-dialog" id="deployment-rule-dialog"
+      aria-labelledby="deployment-rule-dialog-title">
+      <div class="dialog-shell rule-info-dialog-shell">
+        <header class="dialog-header">
+          <div>
+            <p class="step-label" id="deployment-rule-dialog-kind">Rule</p>
+            <h2 id="deployment-rule-dialog-title">Rule description</h2>
+          </div>
+          <button class="dialog-close" id="deployment-rule-dialog-close" type="button"
+            aria-label="Close rule description">×</button>
+        </header>
+        <div class="rule-info-body">
+          <p class="rule-info-meta" id="deployment-rule-dialog-meta" hidden></p>
+          <div class="rule-info-copy" id="deployment-rule-dialog-copy"></div>
+        </div>
+      </div>
+    </dialog>
+    <script type="module" src="deployment-page.js?v=unit-details-1"></script>
   </body>
 
 </html>
